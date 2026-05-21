@@ -94,7 +94,7 @@ export default function RevisionDetailModal({
       onClick={onClose}
     >
       <div
-        className="bg-surface rounded-lg shadow-2xl w-full max-w-lg mx-4 flex flex-col max-h-[80vh]"
+        className="bg-surface-inset rounded-lg shadow-2xl w-full max-w-lg mx-4 flex flex-col max-h-[80vh]"
         onClick={(e) => { e.stopPropagation() }}
       >
         <div className="px-4 py-3 border-b border-edge flex items-center justify-between shrink-0">
