@@ -48,6 +48,18 @@ export interface Revision {
   isWorkingCopy?: boolean
 }
 
+export interface RevisionDetail {
+  id: string
+  shortId: string
+  commitId: string
+  description: string
+  author: string
+  authorEmail: string
+  timestamp: string
+  refs: string[]
+  tags: string[]
+}
+
 export type CommentAuthor = 'user' | 'agent'
 export type CommentStatus = 'open' | 'resolved'
 

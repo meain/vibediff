@@ -73,3 +73,18 @@ type Revision struct {
 	Timestamp     string `json:"timestamp"`
 	IsWorkingCopy bool   `json:"isWorkingCopy,omitempty"`
 }
+
+// RevisionDetail contains full metadata for a single revision, fetched on
+// demand. Refs holds bookmarks (jj) or branches (git); the label is
+// backend-specific and determined by the caller.
+type RevisionDetail struct {
+	ID          string   `json:"id"`
+	ShortID     string   `json:"shortId"`
+	CommitID    string   `json:"commitId"`
+	Description string   `json:"description"`
+	Author      string   `json:"author"`
+	AuthorEmail string   `json:"authorEmail"`
+	Timestamp   string   `json:"timestamp"`
+	Refs        []string `json:"refs"`
+	Tags        []string `json:"tags"`
+}

@@ -523,6 +523,119 @@ func parseJJRevisionLines(output string) []Revision {
 	return revisions
 }
 
+// GetRevisionDetail returns full metadata for a single revision, fetched on
+// demand. For jj the id is a change ID; for git it is a commit SHA. An empty
+// id resolves to the working copy (@ for jj, HEAD for git).
+func (s *Service) GetRevisionDetail(id string) (*RevisionDetail, error) {
+	if s.backend == BackendJJ {
+		return s.getJJRevisionDetail(id)
+	}
+	return s.getGitRevisionDetail(id)
+}
+
+func (s *Service) getJJRevisionDetail(id string) (*RevisionDetail, error) {
+	rev := id
+	if rev == "" {
+		rev = "@"
+	}
+
+	metaTemplate := `change_id ++ "\x00" ++ change_id.shortest(8) ++ "\x00" ++ commit_id ++ "\x00" ++ author.name() ++ "\x00" ++ author.email() ++ "\x00" ++ author.timestamp()`
+	metaOut, err := s.runJJCommand("log", "--no-graph", "-r", rev, "-T", metaTemplate, "--limit", "1")
+	if err != nil {
+		return nil, fmt.Errorf("jj revision detail: %w", err)
+	}
+
+	parts := strings.SplitN(strings.TrimSpace(metaOut), "\x00", 6)
+	if len(parts) < 6 {
+		return nil, fmt.Errorf("jj revision detail: unexpected output format")
+	}
+
+	descOut, err := s.runJJCommand("log", "--no-graph", "-r", rev, "-T", "description", "--limit", "1")
+	if err != nil {
+		return nil, fmt.Errorf("jj revision description: %w", err)
+	}
+
+	refsOut, err := s.runJJCommand("log", "--no-graph", "-r", rev, `-T`, `separate("\n", bookmarks)`, "--limit", "1")
+	if err != nil {
+		refsOut = ""
+	}
+
+	tagsOut, err := s.runJJCommand("log", "--no-graph", "-r", rev, `-T`, `separate("\n", tags)`, "--limit", "1")
+	if err != nil {
+		tagsOut = ""
+	}
+
+	return &RevisionDetail{
+		ID:          parts[0],
+		ShortID:     parts[1],
+		CommitID:    parts[2],
+		Description: strings.TrimRight(descOut, "\n"),
+		Author:      parts[3],
+		AuthorEmail: parts[4],
+		Timestamp:   parts[5],
+		Refs:        splitLines(refsOut),
+		Tags:        splitLines(tagsOut),
+	}, nil
+}
+
+func (s *Service) getGitRevisionDetail(id string) (*RevisionDetail, error) {
+	rev := id
+	if rev == "" {
+		rev = "HEAD"
+	}
+
+	metaOut, err := s.runGitCommand("show", "-s", "--format=%H%x00%h%x00%an%x00%ae%x00%aI", rev)
+	if err != nil {
+		return nil, fmt.Errorf("git show: %w", err)
+	}
+
+	parts := strings.SplitN(strings.TrimSpace(metaOut), "\x00", 5)
+	if len(parts) < 5 {
+		return nil, fmt.Errorf("git show: unexpected output format")
+	}
+
+	bodyOut, err := s.runGitCommand("log", "-1", "--format=%B", rev)
+	if err != nil {
+		return nil, fmt.Errorf("git log body: %w", err)
+	}
+
+	branchOut, err := s.runGitCommand("branch", "--contains", rev, "--format=%(refname:short)")
+	if err != nil {
+		branchOut = ""
+	}
+
+	tagOut, err := s.runGitCommand("tag", "--contains", rev)
+	if err != nil {
+		tagOut = ""
+	}
+
+	return &RevisionDetail{
+		ID:          parts[0],
+		ShortID:     parts[1],
+		CommitID:    parts[0],
+		Description: strings.TrimRight(bodyOut, "\n"),
+		Author:      parts[2],
+		AuthorEmail: parts[3],
+		Timestamp:   parts[4],
+		Refs:        splitLines(branchOut),
+		Tags:        splitLines(tagOut),
+	}, nil
+}
+
+// splitLines splits s on newlines, trims each line, and drops empty ones.
+func splitLines(s string) []string {
+	if strings.TrimSpace(s) == "" {
+		return []string{}
+	}
+	var result []string
+	for line := range strings.SplitSeq(s, "\n") {
+		if line = strings.TrimSpace(line); line != "" {
+			result = append(result, line)
+		}
+	}
+	return result
+}
+
 // GetRevisionDiff returns the diff for a specific revision
 func (s *Service) GetRevisionDiff(revisionID string, contextLines ...int) (*DiffResult, error) {
 	context := 3

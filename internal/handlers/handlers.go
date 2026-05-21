@@ -103,6 +103,20 @@ func (h *Handler) GetRevisions(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, revisions)
 }
 
+// GetRevisionDetail returns full metadata for a single revision.
+func (h *Handler) GetRevisionDetail(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id := vars["id"]
+
+	detail, err := h.gitService.GetRevisionDetail(id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	h.writeJSON(w, detail)
+}
+
 func (h *Handler) GetFileDiff(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	filename, err := url.QueryUnescape(vars["file"])

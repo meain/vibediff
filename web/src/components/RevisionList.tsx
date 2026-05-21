@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import type { Revision, VCSBackend } from '../types/diff'
 import CopyButton from './CopyButton'
+import RevisionDetailModal from './RevisionDetailModal'
 
 interface RevisionListProps {
   revisions: Revision[]
@@ -39,6 +41,9 @@ export default function RevisionList({
   showAll,
   onToggleShowAll,
 }: RevisionListProps): React.ReactElement {
+  const [hoveredId, setHoveredId] = useState<string | null>(null)
+  const [detailRevisionId, setDetailRevisionId] = useState<string | null>(null)
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <div className="flex items-center justify-between px-2 pt-2 pb-1 shrink-0">
@@ -87,6 +92,8 @@ export default function RevisionList({
               }
             }
 
+            const isHovered = hoveredId === rev.id
+
             return (
               <div
                 key={rev.id}
@@ -94,7 +101,11 @@ export default function RevisionList({
                 tabIndex={0}
                 onClick={handleSelect}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSelect(); } }}
-                className={`w-full text-left px-2 py-1.5 text-xs border-b border-edge-subtle transition-colors cursor-pointer ${
+                onMouseEnter={() => { setHoveredId(rev.id) }}
+                onMouseLeave={() => { setHoveredId(null) }}
+                className={`relative w-full text-left pl-2 py-1.5 text-xs border-b border-edge-subtle transition-colors cursor-pointer ${
+                  isHovered ? 'pr-8' : 'pr-2'
+                } ${
                   isSelected
                     ? 'bg-accent-muted text-accent-emphasis'
                     : 'text-fg hover:bg-surface-raised'
@@ -124,10 +135,27 @@ export default function RevisionList({
                   <span>·</span>
                   <span className="shrink-0">{formatTimestamp(rev.timestamp)}</span>
                 </div>
+                {isHovered && (
+                  <button
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] text-fg-muted hover:text-fg px-1 py-0.5 rounded hover:bg-surface-inset transition-colors"
+                    title="View revision details"
+                    onClick={(e) => { e.stopPropagation(); setDetailRevisionId(rev.id) }}
+                  >
+                    ...
+                  </button>
+                )}
               </div>
             )
           })}
         </div>
+      )}
+
+      {detailRevisionId !== null && (
+        <RevisionDetailModal
+          revisionId={detailRevisionId}
+          backend={backend}
+          onClose={() => { setDetailRevisionId(null) }}
+        />
       )}
     </div>
   )
