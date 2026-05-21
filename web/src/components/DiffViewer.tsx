@@ -16,6 +16,7 @@ import HelpModal from './HelpModal'
 import DarkModeToggle from './DarkModeToggle'
 import DirectorySwitcher from './DirectorySwitcher'
 import RevisionList from './RevisionList'
+import CommitSummary from './CommitSummary'
 
 interface DiffViewerProps {
   className?: string
@@ -180,6 +181,17 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
     }
   }
 
+
+  const selectedRevisionData = selectedRevision
+    ? revisions.find(r => r.id === selectedRevision) ?? null
+    : null
+
+  const diffTotals = data
+    ? data.files.reduce(
+        (acc, f) => ({ additions: acc.additions + f.additions, deletions: acc.deletions + f.deletions }),
+        { additions: 0, deletions: 0 }
+      )
+    : { additions: 0, deletions: 0 }
 
   const handleDirectoryChange = async (dir: string): Promise<void> => {
     await changeDirectory(dir)
@@ -427,6 +439,14 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
         {/* Main Content */}
         <Panel defaultSize={80} minSize={40} id="main">
           <div className="h-full bg-surface overflow-y-auto">
+        {selectedRevisionData && data && data.files.length > 0 && (
+          <CommitSummary
+            revision={selectedRevisionData}
+            filesChanged={data.files.length}
+            additions={diffTotals.additions}
+            deletions={diffTotals.deletions}
+          />
+        )}
         {(() => {
           // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
           if (loading) {
