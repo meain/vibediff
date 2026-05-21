@@ -1,4 +1,5 @@
 import type { Revision, VCSBackend } from '../types/diff'
+import CopyButton from './CopyButton'
 
 interface RevisionListProps {
   revisions: Revision[]
@@ -46,8 +47,11 @@ export default function RevisionList({
     <div className="overflow-y-auto">
       {/* Working copy option — only for git, since in jj the first revision IS the working copy */}
       {backend === 'git' && (
-        <button
+        <div
+          role="button"
+          tabIndex={0}
           onClick={() => { onSelectRevision(null); }}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectRevision(null); } }}
           className={`w-full text-left px-2 py-1.5 text-xs border-b border-edge-subtle transition-colors cursor-pointer ${
             selectedRevision === null
               ? 'bg-accent-muted text-accent-emphasis'
@@ -55,7 +59,7 @@ export default function RevisionList({
           }`}
         >
           <div className="font-medium">Working copy changes</div>
-        </button>
+        </div>
       )}
 
       {revisions.map((rev) => {
@@ -63,16 +67,21 @@ export default function RevisionList({
           ? selectedRevision === null
           : selectedRevision === rev.id
 
+        const handleSelect = (): void => {
+          if (rev.isWorkingCopy && backend === 'jj') {
+            onSelectRevision(null)
+          } else {
+            onSelectRevision(rev.id)
+          }
+        }
+
         return (
-          <button
+          <div
             key={rev.id}
-            onClick={() => {
-              if (rev.isWorkingCopy && backend === 'jj') {
-                onSelectRevision(null)
-              } else {
-                onSelectRevision(rev.id)
-              }
-            }}
+            role="button"
+            tabIndex={0}
+            onClick={handleSelect}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSelect(); } }}
             className={`w-full text-left px-2 py-1.5 text-xs border-b border-edge-subtle transition-colors cursor-pointer ${
               isSelected
                 ? 'bg-accent-muted text-accent-emphasis'
@@ -80,9 +89,15 @@ export default function RevisionList({
             }`}
           >
             <div className="flex items-center gap-1.5">
-              <span className="font-mono text-[10px] px-1 py-0.5 rounded bg-surface-inset text-fg-muted shrink-0">
+              <span
+                className="font-mono text-[10px] px-1 py-0.5 rounded bg-surface-inset text-fg-muted shrink-0 select-text cursor-text"
+                onClick={(e) => { e.stopPropagation(); }}
+                onMouseDown={(e) => { e.stopPropagation(); }}
+                title={rev.id}
+              >
                 {rev.shortId}
               </span>
+              <CopyButton value={rev.id} title="Copy commit ID" />
               <span className="truncate">
                 {rev.description || '(no description)'}
               </span>
@@ -97,7 +112,7 @@ export default function RevisionList({
               <span>·</span>
               <span className="shrink-0">{formatTimestamp(rev.timestamp)}</span>
             </div>
-          </button>
+          </div>
         )
       })}
     </div>

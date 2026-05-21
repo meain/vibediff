@@ -3,6 +3,7 @@ import type { FileDiff as FileDiffType, ViewMode, DiffLine as DiffLineType, Diff
 import DiffLine from './DiffLine'
 import CommentDisplay from './CommentDisplay'
 import InlineCommentForm from './InlineCommentForm'
+import CopyButton from './CopyButton'
 import { useRangeSelection } from '../hooks/useRangeSelection'
 
 interface SplitViewLineResult {
@@ -399,6 +400,15 @@ export default function FileDiff({
       : getGapAfterHunk(hunkIndex - 1)
   }, [getGapAfterHunk])
 
+  const handleHeaderToggle = useCallback((e: React.MouseEvent): void => {
+    const wasCollapsed = collapsed
+    const fileEl = (e.currentTarget as HTMLElement).closest<HTMLElement>('[id^="file-"]')
+    onToggleCollapse()
+    if (!wasCollapsed && fileEl && fileEl.getBoundingClientRect().top < 0) {
+      fileEl.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [collapsed, onToggleCollapse])
+
   const renderGap = useCallback((gap: GapInfo, colSpan: number, isSplit: boolean): React.ReactNode => {
     const gapData = getGapRenderData(gap)
     const renderLines = isSplit ? renderExpandedLinesSplit : renderExpandedLinesUnified
@@ -425,9 +435,9 @@ export default function FileDiff({
       {/* File Header — sticky, sits outside the bordered content area */}
       <div
         className={`sticky top-0 z-10 bg-surface-raised px-3 py-2 border border-edge flex items-center justify-between gap-2 cursor-pointer select-none ${collapsed ? 'rounded' : 'rounded-t'}`}
-        onClick={onToggleCollapse}
+        onClick={(e) => { handleHeaderToggle(e); }}
       >
-        <div className="flex items-center gap-2 flex-1 cursor-pointer" onClick={(e) => { e.stopPropagation(); onToggleCollapse(); }}>
+        <div className="flex items-center gap-2 flex-1 cursor-pointer" onClick={(e) => { e.stopPropagation(); handleHeaderToggle(e); }}>
           <svg
             className={`w-3 h-3 text-fg-muted transition-transform ${collapsed ? '' : 'rotate-90'}`}
             fill="currentColor"
@@ -436,10 +446,15 @@ export default function FileDiff({
             <path d="M6 4l4 4-4 4V4z"/>
           </svg>
 
-          <div className="flex-1 flex items-center gap-2">
-            <span className={`text-sm font-semibold font-[-apple-system,BlinkMacSystemFont,'Segoe_UI',Helvetica,Arial,sans-serif] ${isReviewed ? 'text-fg-muted' : 'text-fg'}`}>
+          <div className="flex-1 flex items-center gap-1.5">
+            <span
+              className={`text-sm font-semibold font-[-apple-system,BlinkMacSystemFont,'Segoe_UI',Helvetica,Arial,sans-serif] select-text cursor-text ${isReviewed ? 'text-fg-muted' : 'text-fg'}`}
+              onClick={(e) => { e.stopPropagation(); }}
+              onMouseDown={(e) => { e.stopPropagation(); }}
+            >
               {file.path}
             </span>
+            <CopyButton value={file.path} title="Copy file path" />
             {file.isRenamed && file.oldPath && (
               <span className="text-xs text-fg-muted">
                 renamed from {file.oldPath}

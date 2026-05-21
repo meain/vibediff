@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import type { DiffType, FileDiff, Comment } from '../types/diff'
 import FileDiffComponent from './FileDiff'
 import CommentDialog from './CommentDialog'
+import CopyButton from './CopyButton'
 
 interface FullFileModalProps {
   isOpen: boolean
@@ -79,8 +80,10 @@ export default function FullFileModal({ isOpen, filePath, onClose, viewMode, get
       >
         {/* Header */}
         <div className="px-4 py-4 border-b border-edge flex items-center justify-between">
-          <h3 className="text-base font-semibold text-fg">
-            Full file: {filePath}
+          <h3 className="text-base font-semibold text-fg flex items-center gap-1.5">
+            <span>Full file:</span>
+            <span className="select-text cursor-text">{filePath}</span>
+            <CopyButton value={filePath} title="Copy file path" />
           </h3>
           <button
             onClick={onClose}
