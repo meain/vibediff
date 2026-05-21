@@ -87,6 +87,22 @@ export default function FileList({ files, selectedFile, onSelectFile, displayMod
     return root
   }
 
+  const totalAdditions = files.reduce((sum, f) => sum + f.additions, 0)
+  const totalDeletions = files.reduce((sum, f) => sum + f.deletions, 0)
+
+  const countChanges = (node: TreeNode): { additions: number; deletions: number } => {
+    if (node.type === 'file' && node.file) {
+      return { additions: node.file.additions, deletions: node.file.deletions }
+    }
+    return node.children.reduce(
+      (acc, child) => {
+        const c = countChanges(child)
+        return { additions: acc.additions + c.additions, deletions: acc.deletions + c.deletions }
+      },
+      { additions: 0, deletions: 0 }
+    )
+  }
+
   if (viewMode === 'tree') {
     const tree = buildTree()
 
@@ -132,6 +148,7 @@ export default function FileList({ files, selectedFile, onSelectFile, displayMod
 
       if (node.type === 'folder') {
         const isCollapsed = collapsedFolders.has(node.path)
+        const folderChanges = countChanges(node)
         return (
           <div key={node.path} className="mb-0.5">
             <div
@@ -155,7 +172,11 @@ export default function FileList({ files, selectedFile, onSelectFile, displayMod
               >
                 <path d="M1.75 1A1.75 1.75 0 000 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0016 13.25v-8.5A1.75 1.75 0 0014.25 3H7.5a.25.25 0 01-.2-.1l-.9-1.2C6.07 1.26 5.55 1 5 1H1.75z"/>
               </svg>
-              <span className="text-xs font-semibold text-fg truncate">{node.name}</span>
+              <span className="text-xs font-semibold text-fg truncate flex-1">{node.name}</span>
+              <div className="flex items-center gap-1 text-xs flex-shrink-0">
+                <span className="text-success">+{folderChanges.additions}</span>
+                <span className="text-danger">-{folderChanges.deletions}</span>
+              </div>
             </div>
             <div style={{ display: isCollapsed ? 'none' : 'block' }}>
               {node.children.map(child => renderTreeNode(child, depth + 1))}
@@ -169,6 +190,13 @@ export default function FileList({ files, selectedFile, onSelectFile, displayMod
 
     return (
       <div className="flex flex-col gap-0.5">
+        <div className="flex items-center justify-between px-1.5 py-1 mb-0.5 border-b border-edge">
+          <span className="text-xs text-fg-muted">{files.length} file{files.length !== 1 ? 's' : ''}</span>
+          <div className="flex items-center gap-1 text-xs">
+            <span className="text-success">+{totalAdditions}</span>
+            <span className="text-danger">-{totalDeletions}</span>
+          </div>
+        </div>
         {tree.children.map(child => renderTreeNode(child, 0))}
       </div>
     )
@@ -176,6 +204,13 @@ export default function FileList({ files, selectedFile, onSelectFile, displayMod
 
   return (
     <div className="flex flex-col gap-0.5">
+      <div className="flex items-center justify-between px-1.5 py-1 mb-0.5 border-b border-edge">
+        <span className="text-xs text-fg-muted">{files.length} file{files.length !== 1 ? 's' : ''}</span>
+        <div className="flex items-center gap-1 text-xs">
+          <span className="text-success">+{totalAdditions}</span>
+          <span className="text-danger">-{totalDeletions}</span>
+        </div>
+      </div>
       {files.map((file) => (
         <div
           key={file.path}
