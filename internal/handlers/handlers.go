@@ -79,19 +79,27 @@ func (h *Handler) GetDiff(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) GetRevisions(w http.ResponseWriter, r *http.Request) {
-	limit := 50
-	if l := r.URL.Query().Get("limit"); l != "" {
-		if n, err := fmt.Sscanf(l, "%d", &limit); err != nil || n != 1 {
-			limit = 50
+	if r.URL.Query().Get("all") == "true" {
+		limit := 50
+		if l := r.URL.Query().Get("limit"); l != "" {
+			if n, err := fmt.Sscanf(l, "%d", &limit); err != nil || n != 1 {
+				limit = 50
+			}
 		}
+		revisions, err := h.gitService.GetRevisions(limit)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		h.writeJSON(w, revisions)
+		return
 	}
 
-	revisions, err := h.gitService.GetRevisions(limit)
+	revisions, err := h.gitService.GetRevisionsFromTrunk()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
 	h.writeJSON(w, revisions)
 }
 

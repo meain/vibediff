@@ -397,7 +397,7 @@ func (s *Service) getUntrackedFileDiff(filepath string, contextLines int) (*File
 	}, nil
 }
 
-// GetRevisions returns recent revisions/commits
+// GetRevisions returns recent revisions/commits up to limit.
 func (s *Service) GetRevisions(limit int) ([]Revision, error) {
 	if limit <= 0 {
 		limit = 50
@@ -408,16 +408,79 @@ func (s *Service) GetRevisions(limit int) ([]Revision, error) {
 	return s.getGitRevisions(limit)
 }
 
+// GetRevisionsFromTrunk returns revisions between trunk and the current
+// working copy. Falls back to GetRevisions(50) when trunk cannot be
+// determined or the revset fails.
+func (s *Service) GetRevisionsFromTrunk() ([]Revision, error) {
+	trunk := s.getTrunk()
+	if trunk == "" {
+		return s.GetRevisions(50)
+	}
+	if s.backend == BackendJJ {
+		return s.getJJRevisionsForRevset(fmt.Sprintf("%s..@", trunk))
+	}
+	return s.getGitRevisionsForRange(trunk)
+}
+
+// getTrunk returns the trunk revset/ref for the current backend.
+// Returns empty string if trunk cannot be determined.
+func (s *Service) getTrunk() string {
+	if s.backend == BackendJJ {
+		return "trunk()"
+	}
+	out, err := s.runGitCommand("symbolic-ref", "refs/remotes/origin/HEAD")
+	if err == nil {
+		ref := strings.TrimSpace(out)
+		if after, ok := strings.CutPrefix(ref, "refs/remotes/"); ok {
+			return after
+		}
+	}
+	if _, err := s.runGitCommand("rev-parse", "--verify", "origin/main"); err == nil {
+		return "origin/main"
+	}
+	if _, err := s.runGitCommand("rev-parse", "--verify", "origin/master"); err == nil {
+		return "origin/master"
+	}
+	return ""
+}
+
 func (s *Service) getGitRevisions(limit int) ([]Revision, error) {
 	output, err := s.runGitCommand("log", fmt.Sprintf("--format=format:%%H\x00%%h\x00%%s\x00%%an\x00%%aI"), fmt.Sprintf("-n%d", limit))
 	if err != nil {
-		return nil, fmt.Errorf("failed to get git log: %w", err)
+		return nil, fmt.Errorf("git log: %w", err)
 	}
+	return parseGitRevisionLines(output), nil
+}
 
+func (s *Service) getGitRevisionsForRange(trunk string) ([]Revision, error) {
+	output, err := s.runGitCommand("log", fmt.Sprintf("%s..HEAD", trunk), "--format=format:%H\x00%h\x00%s\x00%an\x00%aI")
+	if err != nil {
+		return s.GetRevisions(50)
+	}
+	return parseGitRevisionLines(output), nil
+}
+
+func (s *Service) getJJRevisions(limit int) ([]Revision, error) {
+	return s.getJJRevisionsForRevset(fmt.Sprintf("ancestors(@, %d)", limit))
+}
+
+func (s *Service) getJJRevisionsForRevset(revset string) ([]Revision, error) {
+	template := `change_id ++ "\x00" ++ change_id.shortest(8) ++ "\x00" ++ description.first_line() ++ "\x00" ++ author.name() ++ "\x00" ++ author.timestamp() ++ "\n"`
+	output, err := s.runJJCommand("log", "--no-graph", "-r", revset, "-T", template)
+	if err != nil {
+		return nil, fmt.Errorf("jj log: %w", err)
+	}
+	revisions := parseJJRevisionLines(output)
+	if len(revisions) > 0 {
+		revisions[0].IsWorkingCopy = true
+	}
+	return revisions, nil
+}
+
+func parseGitRevisionLines(output string) []Revision {
 	if output == "" {
-		return []Revision{}, nil
+		return []Revision{}
 	}
-
 	lines := strings.Split(strings.TrimSpace(output), "\n")
 	var revisions []Revision
 	for _, line := range lines {
@@ -433,24 +496,15 @@ func (s *Service) getGitRevisions(limit int) ([]Revision, error) {
 			Timestamp:   parts[4],
 		})
 	}
-
-	return revisions, nil
+	return revisions
 }
 
-func (s *Service) getJJRevisions(limit int) ([]Revision, error) {
-	template := `change_id ++ "\x00" ++ change_id.shortest(8) ++ "\x00" ++ description.first_line() ++ "\x00" ++ author.name() ++ "\x00" ++ author.timestamp() ++ "\n"`
-	output, err := s.runJJCommand("log", "--no-graph", "-r", fmt.Sprintf("ancestors(@, %d)", limit), "-T", template)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get jj log: %w", err)
-	}
-
+func parseJJRevisionLines(output string) []Revision {
 	if output == "" {
-		return []Revision{}, nil
+		return []Revision{}
 	}
-
-	lines := strings.Split(strings.TrimSpace(output), "\n")
 	var revisions []Revision
-	for _, line := range lines {
+	for line := range strings.SplitSeq(strings.TrimSpace(output), "\n") {
 		if line == "" {
 			continue
 		}
@@ -466,13 +520,7 @@ func (s *Service) getJJRevisions(limit int) ([]Revision, error) {
 			Timestamp:   parts[4],
 		})
 	}
-
-	// In jj, the first revision (@ / working copy) is the working copy
-	if len(revisions) > 0 {
-		revisions[0].IsWorkingCopy = true
-	}
-
-	return revisions, nil
+	return revisions
 }
 
 // GetRevisionDiff returns the diff for a specific revision

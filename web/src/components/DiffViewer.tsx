@@ -36,6 +36,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
   const [selectedRevision, setSelectedRevision] = useState<string | null>(null)
+  const [showAllRevisions, setShowAllRevisions] = useState(false)
 
   const { data, loading, error, refetch } = useDiff(diffType, selectedRevision)
   const [copyFeedback, setCopyFeedback] = useState(false)
@@ -43,7 +44,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
   const { currentDirectory, backend, changeDirectory, validateDirectory } = useDirectory()
   const { comments, addComment, deleteComment, resolveComment, reopenComment, getCommentsForLine, getCommentRangeLines, formatCommentsForExport } = useComments(currentDirectory, selectedRevision)
   const { reviewedFiles, toggleReviewed, clearReviewed, validateReviewed } = useReviewedFiles(currentDirectory)
-  const { revisions, loading: revisionsLoading, refetch: refetchRevisions } = useRevisions()
+  const { revisions, loading: revisionsLoading, refetch: refetchRevisions } = useRevisions(showAllRevisions)
 
   // Refetch when WebSocket triggers an update
   useEffect(() => {
@@ -410,12 +411,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
             />
 
             <Panel defaultSize={40} minSize={15} id="revision-panel">
-              <div className="h-full bg-surface-raised border-r border-edge overflow-y-auto">
-                <div className="px-2 pt-2 pb-1">
-                  <h3 className="text-xs font-semibold text-fg">
-                    Revisions
-                  </h3>
-                </div>
+              <div className="h-full bg-surface-raised border-r border-edge overflow-hidden">
                 <RevisionList
                   revisions={revisions}
                   loading={revisionsLoading}
@@ -425,6 +421,8 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
                     setSelectedFile(null)
                   }}
                   backend={backend}
+                  showAll={showAllRevisions}
+                  onToggleShowAll={() => { setShowAllRevisions(v => !v); }}
                 />
               </div>
             </Panel>

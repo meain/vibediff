@@ -8,7 +8,7 @@ interface UseRevisionsReturn {
   refetch: () => void
 }
 
-export function useRevisions(): UseRevisionsReturn {
+export function useRevisions(all: boolean): UseRevisionsReturn {
   const [revisions, setRevisions] = useState<Revision[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -18,7 +18,8 @@ export function useRevisions(): UseRevisionsReturn {
       if (showLoading) {
         setLoading(true)
       }
-      const response = await fetch('/api/revisions?limit=50')
+      const url = all ? '/api/revisions?all=true' : '/api/revisions'
+      const response = await fetch(url)
       if (!response.ok) {
         throw new Error('Failed to fetch revisions')
       }
@@ -32,7 +33,7 @@ export function useRevisions(): UseRevisionsReturn {
         setLoading(false)
       }
     }
-  }, [])
+  }, [all])
 
   useEffect(() => {
     void fetchRevisions(true)
