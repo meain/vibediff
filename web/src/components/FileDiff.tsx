@@ -464,7 +464,14 @@ export default function FileDiff({
 
           {onToggleReviewed && (
             <button
-              onClick={(e) => { e.stopPropagation(); onToggleReviewed(); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                const fileEl = e.currentTarget.closest<HTMLElement>('[id^="file-"]')
+                onToggleReviewed();
+                if (fileEl && fileEl.getBoundingClientRect().top < 0) {
+                  fileEl.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                }
+              }}
               className={`px-2 py-[3px] text-xs font-medium border rounded-md transition-colors cursor-pointer ${
                 isReviewed
                   ? 'bg-success/15 text-success border-success/30 hover:bg-success/25'
