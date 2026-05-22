@@ -117,6 +117,39 @@ func (h *Handler) GetRevisionDetail(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, detail)
 }
 
+// SquashRevision squashes the specified revision into its parent.
+func (h *Handler) SquashRevision(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id := vars["id"]
+	if err := h.gitService.SquashRevision(id); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+type newRevisionRequest struct {
+	Bookmarks []string `json:"bookmarks"`
+}
+
+// NewRevisionAfter creates a new empty revision after the specified one,
+// inserting it into the stack and optionally moving bookmarks to it.
+func (h *Handler) NewRevisionAfter(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id := vars["id"]
+
+	var req newRevisionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		req.Bookmarks = []string{}
+	}
+
+	if err := h.gitService.NewRevisionAfter(id, req.Bookmarks); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (h *Handler) GetFileDiff(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	filename, err := url.QueryUnescape(vars["file"])

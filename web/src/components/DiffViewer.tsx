@@ -423,6 +423,11 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
                   backend={backend}
                   showAll={showAllRevisions}
                   onToggleShowAll={() => { setShowAllRevisions(v => !v); }}
+                  onMutationSuccess={() => {
+                    setSelectedRevision(null)
+                    setSelectedFile(null)
+                    refetchRevisions()
+                  }}
                 />
               </div>
             </Panel>

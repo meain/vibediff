@@ -117,6 +117,8 @@ func main() {
 
 	r := mux.NewRouter()
 
+	r.HandleFunc("/api/revisions/{id}/squash", handler.SquashRevision).Methods("POST")
+	r.HandleFunc("/api/revisions/{id}/new", handler.NewRevisionAfter).Methods("POST")
 	r.HandleFunc("/api/revisions/{id}", handler.GetRevisionDetail).Methods("GET")
 	r.HandleFunc("/api/revisions", handler.GetRevisions).Methods("GET")
 	r.HandleFunc("/api/diff", handler.GetDiff).Methods("GET")

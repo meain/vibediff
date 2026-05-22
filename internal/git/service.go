@@ -837,6 +837,39 @@ func (s *Service) SetWorkingDirUnsafe(dir string) {
 	s.workingDir = dir
 }
 
+// SquashRevision squashes the specified jj revision into its parent.
+func (s *Service) SquashRevision(id string) error {
+	rev := id
+	if rev == "" {
+		rev = "@"
+	}
+	_, err := s.runJJCommand("squash", "--revision", rev)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// NewRevisionAfter inserts a new empty jj revision after the specified one,
+// rebasing any existing descendants on top of it. If bookmarks is non-empty,
+// each named bookmark is moved to the new revision.
+func (s *Service) NewRevisionAfter(id string, bookmarks []string) error {
+	rev := id
+	if rev == "" {
+		rev = "@"
+	}
+	_, err := s.runJJCommand("new", "--insert-after", rev)
+	if err != nil {
+		return err
+	}
+	for _, bm := range bookmarks {
+		if _, err := s.runJJCommand("bookmark", "move", bm, "--to", "@"); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // StatusRaw returns raw status output for change detection (used by watcher)
 func (s *Service) StatusRaw() (string, error) {
 	if s.backend == BackendJJ {

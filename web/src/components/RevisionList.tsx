@@ -11,6 +11,7 @@ interface RevisionListProps {
   backend: VCSBackend
   showAll: boolean
   onToggleShowAll: () => void
+  onMutationSuccess: () => void
 }
 
 function formatTimestamp(ts: string): string {
@@ -40,6 +41,7 @@ export default function RevisionList({
   backend,
   showAll,
   onToggleShowAll,
+  onMutationSuccess,
 }: RevisionListProps): React.ReactElement {
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [detailRevisionId, setDetailRevisionId] = useState<string | null>(null)
@@ -155,6 +157,10 @@ export default function RevisionList({
           revisionId={detailRevisionId}
           backend={backend}
           onClose={() => { setDetailRevisionId(null) }}
+          onSuccess={() => {
+            setDetailRevisionId(null)
+            onMutationSuccess()
+          }}
         />
       )}
     </div>
