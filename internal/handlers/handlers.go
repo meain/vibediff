@@ -117,6 +117,70 @@ func (h *Handler) GetRevisionDetail(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, detail)
 }
 
+type describeRequest struct {
+	Description string `json:"description"`
+}
+
+// DescribeRevision sets the description of the specified jj revision.
+func (h *Handler) DescribeRevision(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id := vars["id"]
+
+	var req describeRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "missing description", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.gitService.DescribeRevision(id, req.Description); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+type renameBookmarkRequest struct {
+	Name string `json:"name"`
+}
+
+// RenameBookmark renames a jj bookmark.
+func (h *Handler) RenameBookmark(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	oldName, err := url.PathUnescape(vars["name"])
+	if err != nil {
+		http.Error(w, "invalid bookmark name", http.StatusBadRequest)
+		return
+	}
+
+	var req renameBookmarkRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Name == "" {
+		http.Error(w, "missing name", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.gitService.RenameBookmark(oldName, req.Name); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// DeleteBookmark deletes a jj bookmark.
+func (h *Handler) DeleteBookmark(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	name, err := url.PathUnescape(vars["name"])
+	if err != nil {
+		http.Error(w, "invalid bookmark name", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.gitService.DeleteBookmark(name); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // SquashRevision squashes the specified revision into its parent.
 func (h *Handler) SquashRevision(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)

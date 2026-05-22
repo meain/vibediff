@@ -837,6 +837,28 @@ func (s *Service) SetWorkingDirUnsafe(dir string) {
 	s.workingDir = dir
 }
 
+// DescribeRevision sets the description of the specified jj revision.
+func (s *Service) DescribeRevision(id, message string) error {
+	rev := id
+	if rev == "" {
+		rev = "@"
+	}
+	_, err := s.runJJCommand("describe", "--revision", rev, "--message", message)
+	return err
+}
+
+// RenameBookmark renames a jj bookmark.
+func (s *Service) RenameBookmark(oldName, newName string) error {
+	_, err := s.runJJCommand("bookmark", "rename", oldName, newName)
+	return err
+}
+
+// DeleteBookmark deletes a jj bookmark.
+func (s *Service) DeleteBookmark(name string) error {
+	_, err := s.runJJCommand("bookmark", "delete", name)
+	return err
+}
+
 // SquashRevision squashes the specified jj revision into its parent.
 func (s *Service) SquashRevision(id string) error {
 	rev := id

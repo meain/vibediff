@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import type { RevisionDetail, VCSBackend } from '../types/diff'
 import CopyButton from './CopyButton'
 
@@ -54,6 +54,26 @@ function Field({
   )
 }
 
+function PencilIcon(): React.ReactElement {
+  return (
+    <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+    </svg>
+  )
+}
+
+function TrashIcon(): React.ReactElement {
+  return (
+    <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+      <path d="M10 11v6M14 11v6" />
+      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+    </svg>
+  )
+}
+
 function ActionButton({
   onClick,
   title,
@@ -74,6 +94,135 @@ function ActionButton({
   )
 }
 
+interface BookmarkRowProps {
+  name: string
+  isJJ: boolean
+  editing: boolean
+  deleting: boolean
+  saving: boolean
+  error: string | null
+  onStartEdit: () => void
+  onStartDelete: () => void
+  onSaveRename: (draft: string) => void
+  onCancelEdit: () => void
+  onConfirmDelete: () => void
+  onCancelDelete: () => void
+}
+
+function BookmarkRow({
+  name,
+  isJJ,
+  editing,
+  deleting,
+  saving,
+  error,
+  onStartEdit,
+  onStartDelete,
+  onSaveRename,
+  onCancelEdit,
+  onConfirmDelete,
+  onCancelDelete,
+}: BookmarkRowProps): React.ReactElement {
+  const [draft, setDraft] = useState(name)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (editing) {
+      setDraft(name)
+      setTimeout(() => { inputRef.current?.select() }, 0)
+    }
+  }, [editing, name])
+
+  if (deleting) {
+    return (
+      <div className="space-y-1">
+        <div className="flex items-center gap-2 text-xs">
+          <span className="text-fg-muted">Delete</span>
+          <span className="font-mono text-fg">{name}</span>
+          <span className="text-fg-muted">?</span>
+          <button
+            onClick={onConfirmDelete}
+            disabled={saving}
+            className="px-2 py-0.5 text-[10px] font-medium bg-danger text-white rounded hover:opacity-80 transition-opacity cursor-pointer disabled:opacity-50"
+          >
+            {saving ? '…' : 'Delete'}
+          </button>
+          <button
+            onClick={onCancelDelete}
+            disabled={saving}
+            className="px-2 py-0.5 text-[10px] font-medium bg-surface-raised text-fg border border-edge rounded hover:bg-edge transition-colors cursor-pointer disabled:opacity-50"
+          >
+            Cancel
+          </button>
+        </div>
+        {error && <p className="text-[10px] text-red-500">{error}</p>}
+      </div>
+    )
+  }
+
+  if (editing) {
+    return (
+      <div className="space-y-1">
+        <div className="flex items-center gap-1">
+          <input
+            ref={inputRef}
+            value={draft}
+            onChange={(e) => { setDraft(e.target.value) }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') { e.preventDefault(); onSaveRename(draft) }
+              if (e.key === 'Escape') { e.preventDefault(); onCancelEdit() }
+            }}
+            disabled={saving}
+            className="font-mono text-xs bg-surface-raised border border-edge rounded px-1.5 py-0.5 text-fg focus:outline-none focus:border-accent w-full"
+          />
+          <button
+            onClick={() => { onSaveRename(draft) }}
+            disabled={saving}
+            className="shrink-0 px-2 py-0.5 text-[10px] font-medium bg-accent text-accent-fg rounded hover:bg-accent-emphasis transition-colors cursor-pointer disabled:opacity-50"
+          >
+            {saving ? '…' : 'Save'}
+          </button>
+          <button
+            onClick={onCancelEdit}
+            disabled={saving}
+            className="shrink-0 px-2 py-0.5 text-[10px] font-medium bg-surface-raised text-fg border border-edge rounded hover:bg-edge transition-colors cursor-pointer disabled:opacity-50"
+          >
+            Cancel
+          </button>
+        </div>
+        {error && <p className="text-[10px] text-red-500">{error}</p>}
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center gap-1 group/bm">
+        <span className="font-mono text-xs text-fg">{name}</span>
+        {isJJ && (
+          <>
+            <button
+              onClick={onStartEdit}
+              title="Rename bookmark"
+              className="opacity-0 group-hover/bm:opacity-100 p-0.5 text-fg-muted hover:text-fg transition-all cursor-pointer"
+            >
+              <PencilIcon />
+            </button>
+            <button
+              onClick={onStartDelete}
+              title="Delete bookmark"
+              className="opacity-0 group-hover/bm:opacity-100 p-0.5 text-fg-muted hover:text-danger transition-all cursor-pointer"
+            >
+              <TrashIcon />
+            </button>
+          </>
+        )}
+      </div>
+      {error && <p className="text-[10px] text-red-500">{error}</p>}
+    </div>
+  )
+}
+
 export default function RevisionDetailModal({
   revisionId,
   backend,
@@ -84,15 +233,33 @@ export default function RevisionDetailModal({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  // Squash / new-revision confirmation
   const [confirmAction, setConfirmAction] = useState<ConfirmAction>(null)
   const [selectedBookmarks, setSelectedBookmarks] = useState<Set<string>>(new Set())
   const [actionLoading, setActionLoading] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
 
+  // Description editing
+  const [editingDescription, setEditingDescription] = useState(false)
+  const [descriptionDraft, setDescriptionDraft] = useState('')
+  const [descriptionSaving, setDescriptionSaving] = useState(false)
+  const [descriptionError, setDescriptionError] = useState<string | null>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  // Bookmark editing
+  const [editingBookmark, setEditingBookmark] = useState<string | null>(null)
+  const [bookmarkSaving, setBookmarkSaving] = useState(false)
+  const [deletingBookmark, setDeletingBookmark] = useState<string | null>(null)
+  const [bookmarkErrors, setBookmarkErrors] = useState<Record<string, string>>({})
+
   useEffect(() => {
     setDetail(null)
     setLoading(true)
     setError(null)
+    setEditingDescription(false)
+    setEditingBookmark(null)
+    setDeletingBookmark(null)
+    setBookmarkErrors({})
     void (async () => {
       try {
         const res = await fetch(`/api/revisions/${encodeURIComponent(revisionId)}`)
@@ -106,34 +273,111 @@ export default function RevisionDetailModal({
     })()
   }, [revisionId])
 
+  // Auto-resize textarea as content changes
+  useEffect(() => {
+    const el = textareaRef.current
+    if (!el || !editingDescription) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }, [descriptionDraft, editingDescription])
+
   const handleKeyDown = useCallback((e: KeyboardEvent): void => {
     if (e.key === 'Escape') {
-      if (confirmAction !== null) {
+      if (editingDescription) {
+        setEditingDescription(false)
+        setDescriptionError(null)
+      } else if (editingBookmark !== null) {
+        setEditingBookmark(null)
+      } else if (deletingBookmark !== null) {
+        setDeletingBookmark(null)
+      } else if (confirmAction !== null) {
         setConfirmAction(null)
         setActionError(null)
       } else {
         onClose()
       }
     }
-  }, [onClose, confirmAction])
+  }, [onClose, confirmAction, editingDescription, editingBookmark, deletingBookmark])
 
   useEffect(() => {
     document.addEventListener('keydown', handleKeyDown)
     return () => { document.removeEventListener('keydown', handleKeyDown) }
   }, [handleKeyDown])
 
-  const handleConfirm = useCallback((): void => {
+  const saveDescription = useCallback((): void => {
+    if (!detail || descriptionSaving) return
+    setDescriptionSaving(true)
+    setDescriptionError(null)
+    void (async () => {
+      try {
+        const res = await fetch(`/api/revisions/${encodeURIComponent(revisionId)}/description`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ description: descriptionDraft }),
+        })
+        if (!res.ok) throw new Error((await res.text()).trim() || `HTTP ${String(res.status)}`)
+        setDetail(prev => prev ? { ...prev, description: descriptionDraft } : null)
+        setEditingDescription(false)
+      } catch (e) {
+        setDescriptionError(e instanceof Error ? e.message : 'Unknown error')
+      } finally {
+        setDescriptionSaving(false)
+      }
+    })()
+  }, [detail, descriptionDraft, descriptionSaving, revisionId])
+
+  const saveBookmarkRename = useCallback((oldName: string, newName: string): void => {
+    const trimmed = newName.trim()
+    if (trimmed === oldName) { setEditingBookmark(null); return }
+    if (!trimmed) { setEditingBookmark(null); return }
+    setBookmarkSaving(true)
+    setBookmarkErrors(prev => { const next = { ...prev }; delete next[oldName]; return next })
+    void (async () => {
+      try {
+        const res = await fetch(`/api/bookmarks/${encodeURIComponent(oldName)}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: trimmed }),
+        })
+        if (!res.ok) throw new Error((await res.text()).trim() || `HTTP ${String(res.status)}`)
+        setDetail(prev => prev ? { ...prev, refs: prev.refs.map(r => r === oldName ? trimmed : r) } : null)
+        setEditingBookmark(null)
+      } catch (e) {
+        setBookmarkErrors(prev => ({ ...prev, [oldName]: e instanceof Error ? e.message : 'Unknown error' }))
+        setEditingBookmark(null)
+      } finally {
+        setBookmarkSaving(false)
+      }
+    })()
+  }, [])
+
+  const confirmDeleteBookmark = useCallback((name: string): void => {
+    setBookmarkSaving(true)
+    setBookmarkErrors(prev => { const next = { ...prev }; delete next[name]; return next })
+    void (async () => {
+      try {
+        const res = await fetch(`/api/bookmarks/${encodeURIComponent(name)}`, { method: 'DELETE' })
+        if (!res.ok) throw new Error((await res.text()).trim() || `HTTP ${String(res.status)}`)
+        setDetail(prev => prev ? { ...prev, refs: prev.refs.filter(r => r !== name) } : null)
+        setDeletingBookmark(null)
+      } catch (e) {
+        setBookmarkErrors(prev => ({ ...prev, [name]: e instanceof Error ? e.message : 'Unknown error' }))
+        setDeletingBookmark(null)
+      } finally {
+        setBookmarkSaving(false)
+      }
+    })()
+  }, [])
+
+  const handleConfirmAction = useCallback((): void => {
     if (!detail || actionLoading) return
     setActionLoading(true)
     setActionError(null)
-
     void (async () => {
       try {
         let res: Response
         if (confirmAction === 'squash') {
-          res = await fetch(`/api/revisions/${encodeURIComponent(revisionId)}/squash`, {
-            method: 'POST',
-          })
+          res = await fetch(`/api/revisions/${encodeURIComponent(revisionId)}/squash`, { method: 'POST' })
         } else {
           res = await fetch(`/api/revisions/${encodeURIComponent(revisionId)}/new`, {
             method: 'POST',
@@ -160,11 +404,7 @@ export default function RevisionDetailModal({
   const toggleBookmark = (name: string): void => {
     setSelectedBookmarks(prev => {
       const next = new Set(prev)
-      if (next.has(name)) {
-        next.delete(name)
-      } else {
-        next.add(name)
-      }
+      if (next.has(name)) { next.delete(name) } else { next.add(name) }
       return next
     })
   }
@@ -215,55 +455,124 @@ export default function RevisionDetailModal({
               onToggleBookmark={toggleBookmark}
               actionLoading={actionLoading}
               actionError={actionError}
-              onConfirm={handleConfirm}
+              onConfirm={handleConfirmAction}
               onCancel={() => { setConfirmAction(null); setActionError(null) }}
               onClose={onClose}
             />
           ) : (
             <>
-              {loading && (
-                <div className="text-xs text-fg-muted">Loading...</div>
-              )}
-              {error && (
-                <div className="text-xs text-red-500">{error}</div>
-              )}
+              {loading && <div className="text-xs text-fg-muted">Loading...</div>}
+              {error && <div className="text-xs text-red-500">{error}</div>}
               {detail && (
                 <div className="space-y-3">
                   {backend === 'jj' && (
-                    <Field
-                      label="Revision ID"
-                      value={detail.id}
-                      mono
-                      copyValue={detail.id}
-                    />
+                    <Field label="Revision ID" value={detail.id} mono copyValue={detail.id} />
                   )}
-                  <Field
-                    label="Commit ID"
-                    value={detail.commitId}
-                    mono
-                    copyValue={detail.commitId}
-                  />
+                  <Field label="Commit ID" value={detail.commitId} mono copyValue={detail.commitId} />
                   <Field label="Author" value={detail.author} />
                   <Field label="Email" value={detail.authorEmail} />
                   <Field
                     label="Timestamp"
                     value={detail.timestamp ? `${formatTimestamp(detail.timestamp)} (${detail.timestamp})` : '—'}
                   />
-                  <Field
-                    label={refsLabel}
-                    value={detail.refs.length > 0 ? detail.refs.join(', ') : '—'}
-                  />
+
+                  {/* Bookmarks / Branches */}
+                  <div>
+                    <div className="text-[10px] font-medium text-fg-muted uppercase tracking-wide mb-0.5">
+                      {refsLabel}
+                    </div>
+                    {detail.refs.length === 0 ? (
+                      <span className="text-xs text-fg">—</span>
+                    ) : (
+                      <div className="space-y-1.5">
+                        {detail.refs.map(bm => (
+                          <BookmarkRow
+                            key={bm}
+                            name={bm}
+                            isJJ={isJJ}
+                            editing={editingBookmark === bm}
+                            deleting={deletingBookmark === bm}
+                            saving={bookmarkSaving}
+                            error={bookmarkErrors[bm] ?? null}
+                            onStartEdit={() => { setEditingBookmark(bm); setDeletingBookmark(null) }}
+                            onStartDelete={() => { setDeletingBookmark(bm); setEditingBookmark(null) }}
+                            onSaveRename={(draft) => { saveBookmarkRename(bm, draft) }}
+                            onCancelEdit={() => { setEditingBookmark(null) }}
+                            onConfirmDelete={() => { confirmDeleteBookmark(bm) }}
+                            onCancelDelete={() => { setDeletingBookmark(null) }}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
                   <Field
                     label="Tags"
                     value={detail.tags.length > 0 ? detail.tags.join(', ') : '—'}
                   />
+
+                  {/* Description with inline edit */}
                   <div>
-                    <div className="text-[10px] font-medium text-fg-muted uppercase tracking-wide mb-1">
-                      Description
+                    <div className="flex items-center gap-1 mb-1">
+                      <span className="text-[10px] font-medium text-fg-muted uppercase tracking-wide">
+                        Description
+                      </span>
+                      {isJJ && !editingDescription && (
+                        <button
+                          onClick={() => {
+                            setDescriptionDraft(detail.description)
+                            setDescriptionError(null)
+                            setEditingDescription(true)
+                            setTimeout(() => { textareaRef.current?.focus() }, 0)
+                          }}
+                          title="Edit description"
+                          className="p-0.5 text-fg-muted hover:text-fg transition-colors cursor-pointer"
+                        >
+                          <PencilIcon />
+                        </button>
+                      )}
                     </div>
-                    <pre className="text-xs text-fg whitespace-pre-wrap font-sans leading-relaxed">
-                      {detail.description || '—'}
-                    </pre>
+                    {editingDescription ? (
+                      <div className="space-y-1.5">
+                        <textarea
+                          ref={textareaRef}
+                          value={descriptionDraft}
+                          onChange={(e) => { setDescriptionDraft(e.target.value) }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Escape') { e.preventDefault(); setEditingDescription(false); setDescriptionError(null) }
+                            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); saveDescription() }
+                          }}
+                          disabled={descriptionSaving}
+                          rows={3}
+                          className="w-full text-xs bg-surface-raised border border-edge rounded px-2 py-1.5 text-fg font-sans leading-relaxed focus:outline-none focus:border-accent resize-none overflow-hidden disabled:opacity-50"
+                          placeholder="(no description)"
+                        />
+                        {descriptionError && (
+                          <p className="text-[10px] text-red-500">{descriptionError}</p>
+                        )}
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={saveDescription}
+                            disabled={descriptionSaving}
+                            className="px-2 py-0.5 text-[10px] font-medium bg-accent text-accent-fg rounded hover:bg-accent-emphasis transition-colors cursor-pointer disabled:opacity-50"
+                          >
+                            {descriptionSaving ? 'Saving…' : 'Save'}
+                          </button>
+                          <button
+                            onClick={() => { setEditingDescription(false); setDescriptionError(null) }}
+                            disabled={descriptionSaving}
+                            className="px-2 py-0.5 text-[10px] font-medium bg-surface-raised text-fg border border-edge rounded hover:bg-edge transition-colors cursor-pointer disabled:opacity-50"
+                          >
+                            Cancel
+                          </button>
+                          <span className="text-[10px] text-fg-subtle">⌘↵ to save</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <pre className="text-xs text-fg whitespace-pre-wrap font-sans leading-relaxed">
+                        {detail.description || '—'}
+                      </pre>
+                    )}
                   </div>
                 </div>
               )}

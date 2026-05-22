@@ -119,8 +119,11 @@ func main() {
 
 	r.HandleFunc("/api/revisions/{id}/squash", handler.SquashRevision).Methods("POST")
 	r.HandleFunc("/api/revisions/{id}/new", handler.NewRevisionAfter).Methods("POST")
+	r.HandleFunc("/api/revisions/{id}/description", handler.DescribeRevision).Methods("PUT")
 	r.HandleFunc("/api/revisions/{id}", handler.GetRevisionDetail).Methods("GET")
 	r.HandleFunc("/api/revisions", handler.GetRevisions).Methods("GET")
+	r.HandleFunc("/api/bookmarks/{name:.+}", handler.RenameBookmark).Methods("PUT")
+	r.HandleFunc("/api/bookmarks/{name:.+}", handler.DeleteBookmark).Methods("DELETE")
 	r.HandleFunc("/api/diff", handler.GetDiff).Methods("GET")
 	r.HandleFunc("/api/diff/{file:.+}/full", handler.GetFullFileWithDiff).Methods("GET")
 	r.HandleFunc("/api/diff/{file:.+}", handler.GetFileDiff).Methods("GET")
