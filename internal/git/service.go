@@ -409,7 +409,7 @@ func (s *Service) GetRevisions(limit int) ([]Revision, error) {
 }
 
 func (s *Service) getGitRevisions(limit int) ([]Revision, error) {
-	output, err := s.runGitCommand("log", fmt.Sprintf("--format=format:%%H\x00%%h\x00%%s\x00%%an\x00%%aI"), fmt.Sprintf("-n%d", limit))
+	output, err := s.runGitCommand("log", fmt.Sprintf("--format=format:%%H\x00%%h\x00%%s\x00%%an\x00%%aI\x00%%D"), fmt.Sprintf("-n%d", limit))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get git log: %w", err)
 	}
@@ -421,24 +421,48 @@ func (s *Service) getGitRevisions(limit int) ([]Revision, error) {
 	lines := strings.Split(strings.TrimSpace(output), "\n")
 	var revisions []Revision
 	for _, line := range lines {
-		parts := strings.SplitN(line, "\x00", 5)
+		parts := strings.SplitN(line, "\x00", 6)
 		if len(parts) < 5 {
 			continue
 		}
-		revisions = append(revisions, Revision{
+		rev := Revision{
 			ID:          parts[0],
 			ShortID:     parts[1],
 			Description: parts[2],
 			Author:      parts[3],
 			Timestamp:   parts[4],
-		})
+		}
+		if len(parts) == 6 && parts[5] != "" {
+			rev.Bookmarks = parseGitDecorations(parts[5])
+		}
+		revisions = append(revisions, rev)
 	}
 
 	return revisions, nil
 }
 
+// parseGitDecorations extracts branch/tag names from git %D decoration string.
+// Input looks like: "HEAD -> main, origin/main, tag: v1.0"
+func parseGitDecorations(decorate string) []string {
+	var refs []string
+	for _, part := range strings.Split(decorate, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" || part == "HEAD" {
+			continue
+		}
+		// "HEAD -> branchname" — extract just the branch name
+		if strings.HasPrefix(part, "HEAD -> ") {
+			refs = append(refs, strings.TrimPrefix(part, "HEAD -> "))
+			continue
+		}
+		// "tag: v1.0" — keep as-is
+		refs = append(refs, part)
+	}
+	return refs
+}
+
 func (s *Service) getJJRevisions(limit int) ([]Revision, error) {
-	template := `change_id ++ "\x00" ++ change_id.shortest(8) ++ "\x00" ++ description.first_line() ++ "\x00" ++ author.name() ++ "\x00" ++ author.timestamp() ++ "\n"`
+	template := `change_id ++ "\x00" ++ change_id.shortest(8) ++ "\x00" ++ description.first_line() ++ "\x00" ++ author.name() ++ "\x00" ++ author.timestamp() ++ "\x00" ++ bookmarks.join("|") ++ "\n"`
 	output, err := s.runJJCommand("log", "--no-graph", "-r", fmt.Sprintf("ancestors(@, %d)", limit), "-T", template)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get jj log: %w", err)
@@ -454,17 +478,21 @@ func (s *Service) getJJRevisions(limit int) ([]Revision, error) {
 		if line == "" {
 			continue
 		}
-		parts := strings.SplitN(line, "\x00", 5)
+		parts := strings.SplitN(line, "\x00", 6)
 		if len(parts) < 5 {
 			continue
 		}
-		revisions = append(revisions, Revision{
+		rev := Revision{
 			ID:          parts[0],
 			ShortID:     parts[1],
 			Description: parts[2],
 			Author:      parts[3],
 			Timestamp:   parts[4],
-		})
+		}
+		if len(parts) == 6 && parts[5] != "" {
+			rev.Bookmarks = parseJJBookmarks(parts[5])
+		}
+		revisions = append(revisions, rev)
 	}
 
 	// In jj, the first revision (@ / working copy) is the working copy
@@ -473,6 +501,20 @@ func (s *Service) getJJRevisions(limit int) ([]Revision, error) {
 	}
 
 	return revisions, nil
+}
+
+// parseJJBookmarks splits a "|"-separated bookmark string and strips the "*" suffix
+// that jj appends to tracking bookmarks (e.g. "main*" → "main").
+func parseJJBookmarks(raw string) []string {
+	var out []string
+	for _, b := range strings.Split(raw, "|") {
+		b = strings.TrimSpace(b)
+		b = strings.TrimSuffix(b, "*")
+		if b != "" {
+			out = append(out, b)
+		}
+	}
+	return out
 }
 
 // GetRevisionDiff returns the diff for a specific revision

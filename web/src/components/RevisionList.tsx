@@ -107,10 +107,19 @@ export default function RevisionList({
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-1 mt-0.5 text-[10px] text-fg-muted">
+            <div className="flex items-center gap-1 mt-0.5 text-[10px] text-fg-muted flex-wrap">
               <span className="truncate">{rev.author}</span>
               <span>·</span>
               <span className="shrink-0">{formatTimestamp(rev.timestamp)}</span>
+              {rev.bookmarks && rev.bookmarks.map((b) => (
+                <span
+                  key={b}
+                  className="px-1 py-0.5 rounded font-mono leading-none"
+                  style={{ background: 'var(--color-bookmark-bg)', color: 'var(--color-bookmark-fg)' }}
+                >
+                  {b}
+                </span>
+              ))}
             </div>
           </div>
         )

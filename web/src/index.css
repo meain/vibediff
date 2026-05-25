@@ -25,6 +25,8 @@
 
   --c-success: #16a34a;
   --c-danger: #dc2626;
+  --c-bookmark-bg: #f3e8ff;
+  --c-bookmark-fg: #7c3aed;
 
   --c-diff-add: #f0fdf4;
   --c-diff-add-num-bg: rgba(34, 197, 94, 0.15);
@@ -69,6 +71,8 @@
 
   --c-success: #4ade80;
   --c-danger: #f87171;
+  --c-bookmark-bg: #3b1f6e;
+  --c-bookmark-fg: #c4b5fd;
 
   --c-diff-add: rgba(34, 197, 94, 0.1);
   --c-diff-add-num-bg: rgba(34, 197, 94, 0.08);
@@ -118,6 +122,8 @@
 
   --color-success: var(--c-success);
   --color-danger: var(--c-danger);
+  --color-bookmark-bg: var(--c-bookmark-bg);
+  --color-bookmark-fg: var(--c-bookmark-fg);
 
   --color-diff-add: var(--c-diff-add);
   --color-diff-del: var(--c-diff-del);

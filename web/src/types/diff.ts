@@ -46,6 +46,7 @@ export interface Revision {
   author: string
   timestamp: string
   isWorkingCopy?: boolean
+  bookmarks?: string[]
 }
 
 export interface Comment {

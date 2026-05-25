@@ -70,6 +70,20 @@ export default function CommitSummary({ revision, filesChanged, additions, delet
               </span>
               <CopyButton value={revision.id} title="Copy commit ID" />
             </span>
+
+            {revision.bookmarks && revision.bookmarks.length > 0 && (
+              <span className="flex items-center gap-1 flex-wrap">
+                {revision.bookmarks.map((b) => (
+                  <span
+                    key={b}
+                    className="font-mono text-[10px] px-1 py-0.5 rounded leading-none"
+                    style={{ background: 'var(--color-bookmark-bg)', color: 'var(--color-bookmark-fg)' }}
+                  >
+                    {b}
+                  </span>
+                ))}
+              </span>
+            )}
           </div>
         </div>
 
