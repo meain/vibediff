@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { FileDiff } from '../types/diff'
 
 interface FileListProps {
@@ -13,6 +14,12 @@ interface FileListProps {
 }
 
 export default function FileList({ files, selectedFile, onSelectFile, displayMode, viewMode, collapsedFolders, onToggleFolderCollapse, reviewedFiles, onToggleReviewed }: FileListProps): React.ReactElement {
+  const [filter, setFilter] = useState('')
+
+  const filteredFiles = filter.trim()
+    ? files.filter(f => f.path.toLowerCase().includes(filter.toLowerCase()))
+    : files
+
   const handleFileClick = (file: FileDiff): void => {
     onSelectFile(file)
 
@@ -35,7 +42,7 @@ export default function FileList({ files, selectedFile, onSelectFile, displayMod
   const buildTree = (): TreeNode => {
     const root: TreeNode = { name: 'root', path: '', type: 'folder', children: [] }
 
-    files.forEach(file => {
+    filteredFiles.forEach(file => {
       const parts = file.path.split('/')
       let currentNode = root
 
@@ -87,8 +94,8 @@ export default function FileList({ files, selectedFile, onSelectFile, displayMod
     return root
   }
 
-  const totalAdditions = files.reduce((sum, f) => sum + f.additions, 0)
-  const totalDeletions = files.reduce((sum, f) => sum + f.deletions, 0)
+  const totalAdditions = filteredFiles.reduce((sum, f) => sum + f.additions, 0)
+  const totalDeletions = filteredFiles.reduce((sum, f) => sum + f.deletions, 0)
 
   const countChanges = (node: TreeNode): { additions: number; deletions: number } => {
     if (node.type === 'file' && node.file) {
@@ -103,7 +110,18 @@ export default function FileList({ files, selectedFile, onSelectFile, displayMod
     )
   }
 
-  if (viewMode === 'tree') {
+  const filterInput = (
+    <input
+      type="text"
+      value={filter}
+      onChange={(e) => { setFilter(e.target.value); }}
+      onKeyDown={(e) => { if (e.key === 'Escape') setFilter(''); }}
+      placeholder="Filter files…"
+      className="w-full px-2 py-1 mb-1.5 text-xs rounded border border-edge bg-surface-inset text-fg placeholder-fg-subtle focus:outline-none focus:border-accent"
+    />
+  )
+
+  if (viewMode === 'tree' && !filter.trim()) {
     const tree = buildTree()
 
     const renderTreeNode = (node: TreeNode, depth = 0): React.ReactElement | null => {
@@ -190,8 +208,9 @@ export default function FileList({ files, selectedFile, onSelectFile, displayMod
 
     return (
       <div className="flex flex-col gap-0.5">
+        {filterInput}
         <div className="flex items-center justify-between px-1.5 py-1 mb-0.5 border-b border-edge">
-          <span className="text-xs text-fg-muted">{files.length} file{files.length !== 1 ? 's' : ''}</span>
+          <span className="text-xs text-fg-muted">{filteredFiles.length} file{filteredFiles.length !== 1 ? 's' : ''}</span>
           <div className="flex items-center gap-1 text-xs">
             <span className="text-success">+{totalAdditions}</span>
             <span className="text-danger">-{totalDeletions}</span>
@@ -204,14 +223,15 @@ export default function FileList({ files, selectedFile, onSelectFile, displayMod
 
   return (
     <div className="flex flex-col gap-0.5">
+      {filterInput}
       <div className="flex items-center justify-between px-1.5 py-1 mb-0.5 border-b border-edge">
-        <span className="text-xs text-fg-muted">{files.length} file{files.length !== 1 ? 's' : ''}</span>
+        <span className="text-xs text-fg-muted">{filteredFiles.length} file{filteredFiles.length !== 1 ? 's' : ''}</span>
         <div className="flex items-center gap-1 text-xs">
           <span className="text-success">+{totalAdditions}</span>
           <span className="text-danger">-{totalDeletions}</span>
         </div>
       </div>
-      {files.map((file) => (
+      {filteredFiles.map((file) => (
         <div
           key={file.path}
           onClick={(e) => {
