@@ -76,10 +76,11 @@ export default function CommitSummary({ revision, filesChanged, additions, delet
                 {revision.bookmarks.map((b) => (
                   <span
                     key={b}
-                    className="font-mono text-[10px] px-1 py-0.5 rounded leading-none"
+                    className="inline-flex items-center gap-0.5 font-mono text-[10px] px-1 py-0.5 rounded leading-none"
                     style={{ background: 'var(--color-bookmark-bg)', color: 'var(--color-bookmark-fg)' }}
                   >
                     {b}
+                    <CopyButton value={b} title={`Copy bookmark "${b}"`} />
                   </span>
                 ))}
               </span>

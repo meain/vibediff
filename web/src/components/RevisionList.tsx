@@ -114,10 +114,11 @@ export default function RevisionList({
               {rev.bookmarks && rev.bookmarks.map((b) => (
                 <span
                   key={b}
-                  className="px-1 py-0.5 rounded font-mono leading-none"
+                  className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded font-mono leading-none"
                   style={{ background: 'var(--color-bookmark-bg)', color: 'var(--color-bookmark-fg)' }}
                 >
                   {b}
+                  <CopyButton value={b} title={`Copy bookmark "${b}"`} />
                 </span>
               ))}
             </div>
