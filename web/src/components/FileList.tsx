@@ -121,7 +121,7 @@ export default function FileList({ files, selectedFile, onSelectFile, displayMod
     />
   )
 
-  if (viewMode === 'tree' && !filter.trim()) {
+  if (viewMode === 'tree') {
     const tree = buildTree()
 
     const renderTreeNode = (node: TreeNode, depth = 0): React.ReactElement | null => {
