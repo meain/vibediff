@@ -61,6 +61,7 @@ func main() {
 		debug   = flag.Bool("debug", false, "Enable debug logging")
 		version = flag.Bool("version", false, "Show version information")
 		noOpen  = flag.Bool("no-open", false, "Disable automatic browser opening")
+		dev     = flag.Bool("dev", false, "Serve web assets from web/dist/ on disk (for watch/dev mode)")
 	)
 	flag.Parse()
 
@@ -125,9 +126,16 @@ func main() {
 	r.HandleFunc("/api/ws", handler.HandleWebSocket(wsHub)).Methods("GET")
 
 	// Serve static assets from React build
-	webFS, err := fs.Sub(webFiles, "web/dist")
-	if err != nil {
-		log.Fatal("Failed to create sub filesystem:", err)
+	var webFS fs.FS
+	if *dev {
+		log.Println("Dev mode: serving web assets from web/dist/ on disk")
+		webFS = os.DirFS("web/dist")
+	} else {
+		var err error
+		webFS, err = fs.Sub(webFiles, "web/dist")
+		if err != nil {
+			log.Fatal("Failed to create sub filesystem:", err)
+		}
 	}
 	r.PathPrefix("/assets/").Handler(http.FileServer(http.FS(webFS)))
 	r.PathPrefix("/themes/").Handler(http.FileServer(http.FS(webFS)))
@@ -138,13 +146,14 @@ func main() {
 	// Catch-all route for React app (must be last)
 	r.PathPrefix("/").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Serve index.html for all non-API routes (React routing)
-		indexHTML, err := webFiles.ReadFile("web/dist/index.html")
+		var indexHTML []byte
+		var err error
+		if *dev {
+			indexHTML, err = os.ReadFile("web/dist/index.html")
+		} else {
+			indexHTML, err = webFiles.ReadFile("web/dist/index.html")
+		}
 		if err != nil {
-			// Fallback to file system in development
-			if _, err := os.Stat("web/dist/index.html"); err == nil {
-				http.ServeFile(w, r, "web/dist/index.html")
-				return
-			}
 			http.Error(w, "Application not found", http.StatusNotFound)
 			return
 		}

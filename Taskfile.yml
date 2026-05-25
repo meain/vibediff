@@ -21,6 +21,14 @@ tasks:
     cmds:
       - go run main.go
 
+  watch:
+    desc: Watch for changes and rebuild automatically (refresh browser to pick up new version)
+    cmds:
+      - cmd: cd web && npm run build -- --watch &
+        ignore_error: true
+      - sleep 2
+      - go run main.go -dev
+
   build:
     desc: Build the VibeDiff binary with embedded web assets
     deps: [build-web]
