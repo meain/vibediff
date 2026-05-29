@@ -54,6 +54,20 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
     return () => { clearTimeout(timer); }
   }, [lastUpdate, refetch, refetchRevisions])
 
+  // When revisions reload, check if the selected revision still exists.
+  // If a commit was squashed/abandoned the change_id disappears from the
+  // list, so reset to the working-copy view instead of staying stuck on
+  // a stale (and now-failing) revision diff.
+  useEffect(() => {
+    if (selectedRevision !== null && !revisionsLoading && revisions.length > 0) {
+      const stillExists = revisions.some(r => r.id === selectedRevision)
+      if (!stillExists) {
+        setSelectedRevision(null)
+        setSelectedFile(null)
+      }
+    }
+  }, [revisions, revisionsLoading, selectedRevision])
+
   // Load preferences from localStorage
   useEffect(() => {
     const savedViewMode = localStorage.getItem('viewMode') as ViewMode | null
@@ -201,20 +215,13 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
     refetchRevisions()
   }
 
-  if (loading) {
+  // Only show the full-screen loading spinner on the very first load (no
+  // data yet). Subsequent refetches keep the existing layout visible so
+  // the sidebar and revision list stay usable while content updates.
+  if (loading && !data) {
     return (
       <div className={`flex justify-center items-center h-screen ${className}`}>
         <div className="text-fg-subtle">Loading diff...</div>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className={`flex justify-center items-center h-screen ${className}`}>
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-          <p className="text-red-600 dark:text-red-400">Error: {error}</p>
-        </div>
       </div>
     )
   }
