@@ -1,7 +1,6 @@
 # Design Proposal: Vibediff ↔ Claude Code MCP Bridge
 
-**Status:** Accepted (channel mode superseded by ADR 0001 — see
-[`docs/adr/0001-replace-channel-push-with-watch-loop.md`](../adr/0001-replace-channel-push-with-watch-loop.md))
+**Status:** Accepted
 **Author:** Ryan Keepers
 **Date:** 2026-05-13
 
@@ -70,11 +69,10 @@ Claude enters the loop via the **`/vibediff-watch` slash command**,
 typed once per session. See
 [`docs/vibediff-watch-command.md`](../vibediff-watch-command.md). A
 `SessionStart` hook was considered but does not eliminate the
-keystroke — see ADR 0001.
+keystroke — it can pre-load the prompt body into context but cannot
+trigger Claude to call `wait_for_comment` without a user turn.
 
-This path supersedes channel mode (ADR 0001). It works on any Claude
-Code install that permits MCP, including org-managed installs that
-block `--channels`.
+This path works on any Claude Code install that permits MCP.
 
 ### MCP pull (agent-initiated, one-shot)
 
@@ -284,9 +282,8 @@ complementary, not alternatives.
   `.mcp.json` project scope, and `list_changed` notifications for
   tools, prompts, and resources. It does **not** support resource
   content subscriptions. Mid-session server→client push exists only
-  through the experimental `--channels` feature, which is blocked by
-  org policy for the target user base; the watch-loop tool path
-  replaces it (see ADR 0001).
+  through push notifications; the watch-loop `wait_for_comment` tool
+  fills this role without requiring any experimental flags.
 - **Line-number drift.** If the user comments on line 42
   and the agent edits the file, the line number no longer points to
   the same code. The agent is shielded by the pinned-commit
@@ -318,6 +315,4 @@ complementary, not alternatives.
   subsequent edits.
 - **Persist comments across vibediff restarts.**
 - **Multi-repo / multi-instance coordination beyond 1:1.**
-- **Cursor-based "since" endpoint.** Once channel-mode push lands,
-  pair it with a `GET /api/review/comments/since/{id}` or similar so
-  the agent can fetch only the comment that triggered a push.
+- **Cursor-based "since" endpoint.** A `GET /api/review/comments/since/{id}` or similar would let the agent fetch only new comments without re-listing everything.

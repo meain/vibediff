@@ -28,38 +28,27 @@ same wiring for free.
 ## Launching Claude
 
 ```bash
-claude --channels server:vibediff
+claude
 ```
 
-Vibediff is a channels-only integration. When you add a comment in the
-UI, vibediff emits a `notifications/claude/channel` event to the
-connected Claude session; Claude wraps it in `<channel
-source="vibediff">` and acts on it on the next turn — or immediately
-if Claude is idle.
+Then enter the watch loop by typing `/vibediff-watch` once at the start
+of your session. Claude will call `wait_for_comment` in a loop,
+wake when you leave a comment in the browser, act on it, and go back
+to waiting.
 
-Requirements:
-
-- Claude Code v2.1.80 or later.
-- Your org's Claude Code policy must permit `--channels` (managed
-  installs sometimes block it). If you see `--channels blocked by org
-  policy`, contact your admin.
-
-For the full walkthrough including verification, the channel-event
-wire format, and troubleshooting, see
-[`channel-setup.md`](./channel-setup.md).
+For one-shot pull instead, use the `/vibediff` slash command.
 
 ## What this gives you
 
 Once Claude Code is launched with this config and `vibediff` is running:
 
-- **Push.** New user comments wake the Claude session via
-  `notifications/claude/channel`.
-- `list_open_comments` — the agent can fetch all currently open
-  comments, each with its pinned-commit diff hunk.
+- **Watch-loop.** `/vibediff-watch` makes Claude block in
+  `wait_for_comment` and wake automatically when you add a comment.
+- `list_open_comments` — fetch all currently open comments, each with
+  its pinned-commit diff hunk.
 - `reply_to_comment` — agent replies appear threaded under the user
   comment in the vibediff UI.
-- `get_full_hunk` — agent can re-fetch the diff hunk for a single
-  comment.
+- `get_full_hunk` — re-fetch the diff hunk for a single comment.
 - `comments://open` — `@`-mentionable resource.
 
 Status changes (resolve / reopen) are not on the tool surface. Resolve
