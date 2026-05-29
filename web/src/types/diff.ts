@@ -49,12 +49,21 @@ export interface Revision {
   bookmarks?: string[]
 }
 
+export type CommentAuthor = 'user' | 'agent'
+export type CommentStatus = 'open' | 'resolved'
+
 export interface Comment {
   id: string
   file: string
   line: number
   lineEnd: number
+  side?: string
   content: string
+  author: CommentAuthor
+  parentId?: string
+  status: CommentStatus
+  revision?: string
+  commit?: string
   createdAt: string
 }
 
