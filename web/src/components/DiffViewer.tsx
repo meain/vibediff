@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type { DiffType, ViewMode, FileDiff as FileDiffType } from '../types/diff'
 import { useDiff } from '../hooks/useDiff'
 import { useComments } from '../hooks/useComments'
@@ -35,7 +35,12 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
   const [wrapLines, setWrapLines] = useState<boolean>(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
-  const [selectedRevision, setSelectedRevision] = useState<string | null>(null)
+  const [selectedRevision, setSelectedRevision] = useState<string | null>(() => {
+    const params = new URLSearchParams(window.location.search)
+    return params.get('rev')
+  })
+  // Tracks the file path from the URL on first load so we can restore it once data arrives
+  const initialFilePathRef = useRef<string | null>(new URLSearchParams(window.location.search).get('file'))
 
   const { data, loading, error, refetch } = useDiff(diffType, selectedRevision)
   const [copyFeedback, setCopyFeedback] = useState(false)
@@ -101,6 +106,16 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
     if (savedWrapLines !== null) setWrapLines(savedWrapLines === 'true')
   }, [])
 
+  // Sync selected revision and file to URL params
+  useEffect(() => {
+    const params = new URLSearchParams()
+    if (selectedRevision) params.set('rev', selectedRevision)
+    if (selectedFile) params.set('file', selectedFile.path)
+    const search = params.toString()
+    const newUrl = search ? `${window.location.pathname}?${search}` : window.location.pathname
+    window.history.replaceState(null, '', newUrl)
+  }, [selectedRevision, selectedFile])
+
   // Save preferences using the custom hook
   useLocalStorage('viewMode', viewMode)
   useLocalStorage('displayMode', displayMode)
@@ -115,7 +130,14 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
       validateReviewed(data.files)
 
       if (!selectedFile) {
-        setSelectedFile(data.files[0])
+        const pending = initialFilePathRef.current
+        if (pending) {
+          initialFilePathRef.current = null
+          const fromUrl = data.files.find(f => f.path === pending)
+          setSelectedFile(fromUrl ?? data.files[0])
+        } else {
+          setSelectedFile(data.files[0])
+        }
       } else {
         const stillExists = data.files.find(f => f.path === selectedFile.path)
         if (stillExists) {
