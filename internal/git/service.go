@@ -409,7 +409,10 @@ func (s *Service) GetRevisions(limit int) ([]Revision, error) {
 }
 
 func (s *Service) getGitRevisions(limit int) ([]Revision, error) {
-	output, err := s.runGitCommand("log", fmt.Sprintf("--format=format:%%H\x00%%h\x00%%s\x00%%an\x00%%aI\x00%%D"), fmt.Sprintf("-n%d", limit))
+	// Use US (0x1F) as a field separator instead of NUL: Go's exec refuses
+	// to pass arguments containing NUL bytes through execve, so a NUL-
+	// separated --format= string fails with "invalid argument".
+	output, err := s.runGitCommand("log", "--format=format:%H\x1f%h\x1f%s\x1f%an\x1f%aI\x1f%D", fmt.Sprintf("-n%d", limit))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get git log: %w", err)
 	}
@@ -421,7 +424,7 @@ func (s *Service) getGitRevisions(limit int) ([]Revision, error) {
 	lines := strings.Split(strings.TrimSpace(output), "\n")
 	var revisions []Revision
 	for _, line := range lines {
-		parts := strings.SplitN(line, "\x00", 6)
+		parts := strings.SplitN(line, "\x1f", 6)
 		if len(parts) < 5 {
 			continue
 		}
