@@ -459,9 +459,18 @@ export default function FileDiff({
               {file.path}
             </span>
             <CopyButton value={file.path} title="Copy file path" />
-            {file.isRenamed && file.oldPath && (
-              <span className="text-xs text-fg-muted">
-                renamed from {file.oldPath}
+            {file.status === 'added' && (
+              <span className="text-[10px] font-bold px-1 py-0.5 rounded bg-success/15 text-success border border-success/30">A</span>
+            )}
+            {file.status === 'deleted' && (
+              <span className="text-[10px] font-bold px-1 py-0.5 rounded bg-danger/15 text-danger border border-danger/30">D</span>
+            )}
+            {file.status === 'renamed' && (
+              <span className="text-[10px] font-bold px-1 py-0.5 rounded bg-accent/15 text-accent border border-accent/30">R</span>
+            )}
+            {file.status === 'renamed' && file.oldPath && (
+              <span className="text-xs text-fg-muted font-mono">
+                {file.oldPath} → {file.path}
               </span>
             )}
           </div>
