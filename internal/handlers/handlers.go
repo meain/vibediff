@@ -191,6 +191,28 @@ func (h *Handler) GetLatestComment(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, c)
 }
 
+// UpdateComment replaces the content of an existing comment.
+func (h *Handler) UpdateComment(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	var req struct {
+		Content string `json:"content"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if req.Content == "" {
+		http.Error(w, "content is required", http.StatusBadRequest)
+		return
+	}
+	if !h.reviewStore.UpdateContent(vars["id"], req.Content) {
+		http.Error(w, "Comment not found", http.StatusNotFound)
+		return
+	}
+	_ = h.reviewStore.SaveComments(h.gitService.GetWorkingDir())
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (h *Handler) DeleteComment(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]

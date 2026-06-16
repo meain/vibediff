@@ -5,6 +5,7 @@ import { WebSocketContext } from '../contexts/WebSocketContext'
 interface UseCommentsReturn {
   comments: Comment[]
   addComment: (file: string, line: number, content: string, lineEnd: number) => Promise<Comment>
+  updateComment: (id: string, content: string) => Promise<void>
   deleteComment: (id: string) => Promise<void>
   resolveComment: (id: string) => Promise<void>
   reopenComment: (id: string) => Promise<void>
@@ -78,6 +79,16 @@ export function useComments(currentDirectory?: string, selectedRevision?: string
       throw error
     }
   }, [selectedRevision])
+
+  const updateComment = useCallback(async (id: string, content: string) => {
+    const response = await fetch(`/api/review/comment/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content })
+    })
+    if (!response.ok) throw new Error('Failed to update comment')
+    setComments(prev => prev.map(c => c.id === id ? { ...c, content } : c))
+  }, [])
 
   const setLocalStatus = (id: string, status: Comment['status']): void => {
     setComments(prev => prev.map(c => c.id === id ? { ...c, status } : c))
@@ -163,6 +174,7 @@ export function useComments(currentDirectory?: string, selectedRevision?: string
   return {
     comments,
     addComment,
+    updateComment,
     deleteComment,
     resolveComment,
     reopenComment,

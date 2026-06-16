@@ -262,6 +262,18 @@ func (s *Store) GetCommentsByStatus(status string) []*Comment {
 	return comments
 }
 
+// UpdateContent replaces the text of a comment. Returns false if not found.
+func (s *Store) UpdateContent(id, content string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	c, ok := s.comments[id]
+	if !ok {
+		return false
+	}
+	c.Content = content
+	return true
+}
+
 // SetStatus updates a comment's status. Returns false if the comment was
 // not found. Resolution is invoked from the UI; the agent has no tool to
 // flip status.

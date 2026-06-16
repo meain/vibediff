@@ -106,6 +106,7 @@ interface FileDiffProps {
   getCommentsForLine: (file: string, line: number) => Comment[]
   getCommentRangeLines?: (file: string, lineOrder: number[]) => Set<number>
   onDeleteComment: (id: string) => Promise<void>
+  onUpdateComment?: (id: string, content: string) => Promise<void>
   onResolveComment?: (id: string) => Promise<void>
   onReopenComment?: (id: string) => Promise<void>
   hideViewFullFile?: boolean
@@ -130,6 +131,7 @@ export default function FileDiff({
   getCommentsForLine,
   getCommentRangeLines,
   onDeleteComment,
+  onUpdateComment,
   onResolveComment,
   onReopenComment,
   hideViewFullFile = false,
@@ -568,6 +570,7 @@ export default function FileDiff({
                                 <CommentDisplay
                                   comments={comments}
                                   onDelete={(id) => { void onDeleteComment(id); }}
+                                  onUpdate={onUpdateComment}
                                   onResolve={onResolveComment ? (id) => { void onResolveComment(id); } : undefined}
                                   onReopen={onReopenComment ? (id) => { void onReopenComment(id); } : undefined}
                                 />
@@ -636,7 +639,7 @@ export default function FileDiff({
                         comments,
                         lineNumber
                       }
-                    }, onDeleteComment, activeComment && onSubmitComment && onCancelComment ? { activeComment, onSubmitComment, onCancelComment } : null, onResolveComment, onReopenComment)}
+                    }, onDeleteComment, activeComment && onSubmitComment && onCancelComment ? { activeComment, onSubmitComment, onCancelComment } : null, onResolveComment, onReopenComment, onUpdateComment)}
                   </React.Fragment>
                   )
                 })}
@@ -666,6 +669,7 @@ function renderSplitView(
   inlineComment: InlineCommentInfo | null,
   onResolveComment?: (id: string) => Promise<void>,
   onReopenComment?: (id: string) => Promise<void>,
+  onUpdateComment?: (id: string, content: string) => Promise<void>,
 ): React.ReactNode[] {
   const resolveCb = onResolveComment ? (id: string) => { void onResolveComment(id); } : undefined
   const reopenCb = onReopenComment ? (id: string) => { void onReopenComment(id); } : undefined
@@ -705,6 +709,7 @@ function renderSplitView(
               <CommentDisplay
                 comments={result.comments}
                 onDelete={(id) => { void onDeleteComment(id); }}
+                onUpdate={onUpdateComment}
                 onResolve={resolveCb}
                 onReopen={reopenCb}
               />
@@ -733,6 +738,7 @@ function renderSplitView(
                   <CommentDisplay
                     comments={deleteResult.comments}
                     onDelete={(id) => { void onDeleteComment(id); }}
+                    onUpdate={onUpdateComment}
                     onResolve={resolveCb}
                     onReopen={reopenCb}
                   />
@@ -743,6 +749,7 @@ function renderSplitView(
                   <CommentDisplay
                     comments={addResult.comments}
                     onDelete={(id) => { void onDeleteComment(id); }}
+                    onUpdate={onUpdateComment}
                     onResolve={resolveCb}
                     onReopen={reopenCb}
                   />
@@ -769,6 +776,7 @@ function renderSplitView(
                 <CommentDisplay
                   comments={result.comments}
                   onDelete={(id) => { void onDeleteComment(id); }}
+                  onUpdate={onUpdateComment}
                   onResolve={resolveCb}
                   onReopen={reopenCb}
                 />
@@ -796,6 +804,7 @@ function renderSplitView(
               <CommentDisplay
                 comments={result.comments}
                 onDelete={(id) => { void onDeleteComment(id); }}
+                onUpdate={onUpdateComment}
                 onResolve={resolveCb}
                 onReopen={reopenCb}
               />
