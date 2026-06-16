@@ -7,6 +7,7 @@ interface RevisionListProps {
   selectedRevision: string | null
   onSelectRevision: (revisionId: string | null) => void
   backend: VCSBackend
+  reviewedRevisions?: Set<string>
 }
 
 function formatTimestamp(ts: string): string {
@@ -34,6 +35,7 @@ export default function RevisionList({
   selectedRevision,
   onSelectRevision,
   backend,
+  reviewedRevisions,
 }: RevisionListProps): React.ReactElement {
   if (loading) {
     return (
@@ -58,7 +60,12 @@ export default function RevisionList({
               : 'text-fg hover:bg-surface-raised'
           }`}
         >
-          <div className="font-medium">Working copy changes</div>
+          <div className="flex items-center gap-1">
+            {reviewedRevisions?.has('working-copy') && (
+              <span className="text-[10px] text-success shrink-0" title="All files reviewed">✓</span>
+            )}
+            <span className="font-medium">Working copy changes</span>
+          </div>
         </div>
       )}
 
@@ -98,6 +105,9 @@ export default function RevisionList({
                 {rev.shortId}
               </span>
               <CopyButton value={rev.id} title="Copy commit ID" />
+              {reviewedRevisions?.has(rev.isWorkingCopy && backend === 'jj' ? 'working-copy' : rev.id) && (
+                <span className="text-[10px] text-success shrink-0" title="All files reviewed">✓</span>
+              )}
               <span className="truncate">
                 {rev.description || '(no description)'}
               </span>

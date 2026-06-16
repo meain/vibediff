@@ -6,6 +6,7 @@ import { useLocalStorage } from '../hooks/useLocalStorage'
 import { useWebSocketUpdates } from '../contexts/WebSocketContext'
 import { useDirectory } from '../hooks/useDirectory'
 import { useReviewedFiles } from '../hooks/useReviewedFiles'
+import { useReviewedRevisions } from '../hooks/useReviewedRevisions'
 import { useRevisions } from '../hooks/useRevisions'
 import { getButtonClassName } from '../utils/buttonStyles'
 import { Group, Panel, Separator } from 'react-resizable-panels'
@@ -48,6 +49,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
   const { currentDirectory, backend, changeDirectory, validateDirectory } = useDirectory()
   const { comments, addComment, deleteComment, resolveComment, reopenComment, getCommentsForLine, getCommentRangeLines, formatCommentsForExport } = useComments(currentDirectory, selectedRevision)
   const { reviewedFiles, toggleReviewed, clearReviewed, validateReviewed } = useReviewedFiles(currentDirectory, selectedRevision)
+  const { reviewedRevisions, markRevisionReviewed, unmarkRevisionReviewed } = useReviewedRevisions(currentDirectory)
   const { revisions, loading: revisionsLoading, refetch: refetchRevisions } = useRevisions()
 
   // Refetch when WebSocket triggers an update
@@ -123,6 +125,18 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
   useLocalStorage('sidebarView', fileViewMode)
   useLocalStorage('collapsedFolders', collapsedFolders)
   useLocalStorage('wrapLines', wrapLines)
+
+  // Auto-mark/unmark the current revision as fully reviewed whenever the
+  // reviewed-files set or diff data changes.
+  useEffect(() => {
+    if (!data || data.files.length === 0) return
+    const revKey = selectedRevision ?? 'working-copy'
+    if (reviewedFiles.size >= data.files.length) {
+      markRevisionReviewed(revKey)
+    } else {
+      unmarkRevisionReviewed(revKey)
+    }
+  }, [reviewedFiles, data, selectedRevision, markRevisionReviewed, unmarkRevisionReviewed])
 
   // Auto-select first file when data loads and validate reviewed files
   useEffect(() => {
@@ -454,6 +468,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
                     setSelectedFile(null)
                   }}
                   backend={backend}
+                  reviewedRevisions={reviewedRevisions}
                 />
               </div>
             </Panel>
