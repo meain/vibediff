@@ -138,6 +138,8 @@ func main() {
 	r.HandleFunc("/api/review/comment/{id}/reopen", handler.ReopenComment).Methods("POST")
 
 	// Directory management endpoints
+	r.HandleFunc("/docs", handler.ServeDocsPage).Methods("GET")
+
 	r.HandleFunc("/api/directory", handler.GetDirectory).Methods("GET")
 	r.HandleFunc("/api/directory", handler.SetDirectory).Methods("POST")
 	r.HandleFunc("/api/directory/validate", handler.ValidateDirectory).Methods("POST")
