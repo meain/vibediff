@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useContext } from 'react'
-import type { Comment } from '../types/diff'
+import type { Comment, Revision } from '../types/diff'
 import { WebSocketContext } from '../contexts/WebSocketContext'
+import { groupIntoThreads } from '../utils/threads'
 
 interface UseCommentsReturn {
   comments: Comment[]
@@ -11,7 +12,7 @@ interface UseCommentsReturn {
   reopenComment: (id: string) => Promise<void>
   getCommentsForLine: (file: string, line: number) => Comment[]
   getCommentRangeLines: (file: string, lineOrder: number[]) => Set<number>
-  formatCommentsForExport: () => string
+  formatCommentsForExport: (revisions?: Revision[]) => string
 }
 
 export function useComments(currentDirectory?: string, selectedRevision?: string | null): UseCommentsReturn {
@@ -150,25 +151,76 @@ export function useComments(currentDirectory?: string, selectedRevision?: string
     return result
   }, [comments])
 
-  const formatCommentsForExport = useCallback(() => {
+  const formatCommentsForExport = useCallback((revisions?: Revision[]) => {
     if (comments.length === 0) return ''
 
-    // Group comments by file
-    const byFile = new Map<string, Comment[]>()
-    for (const c of comments) {
-      const list = byFile.get(c.file) ?? []
-      list.push(c)
-      byFile.set(c.file, list)
+    const threads = new Map(groupIntoThreads(comments).map(t => [t.root.id, t]))
+    const authorLabel = (c: Comment): string => c.author === 'agent' ? 'Agent' : 'User'
+
+    const renderSection = (sectionRoots: Comment[]): string[] => {
+      // Group roots by file
+      const byFile = new Map<string, Comment[]>()
+      for (const c of sectionRoots) {
+        const list = byFile.get(c.file) ?? []
+        list.push(c)
+        byFile.set(c.file, list)
+      }
+      const out: string[] = []
+      for (const [file, roots] of byFile) {
+        out.push(`### ${file}`, '')
+        for (const root of roots) {
+          const lineRef = root.line === root.lineEnd
+            ? `Line ${Math.abs(root.line)}`
+            : `Lines ${Math.abs(root.line)}–${Math.abs(root.lineEnd)}`
+          out.push(`- **${lineRef}** [${authorLabel(root)}]: ${root.content}`)
+          const thread = threads.get(root.id)
+          if (thread) {
+            for (const reply of thread.replies) {
+              out.push(`  - [${authorLabel(reply)}]: ${reply.content}`)
+            }
+          }
+        }
+        out.push('')
+      }
+      return out
+    }
+
+    const openRoots = comments.filter(c => !c.parentId && c.status === 'open')
+    const resolvedRoots = comments.filter(c => !c.parentId && c.status === 'resolved')
+
+    // Build a revision description lookup from the provided list.
+    // Each comment carries a revision ID (jj change ID) and/or a commit SHA.
+    // We prefer the revision description; fall back to the short commit SHA.
+    const revMap = new Map<string, Revision>()
+    for (const r of revisions ?? []) {
+      revMap.set(r.id, r)
+    }
+    const revisionHeader = (): string => {
+      // Collect unique revision IDs referenced by root comments
+      const ids = [...new Set(comments.filter(c => !c.parentId && !!c.revision).map(c => c.revision as string))]
+      if (ids.length === 0) return ''
+      return ids.map(id => {
+        const r = revMap.get(id)
+        if (r) {
+          const desc = r.description || '(no description)'
+          return `> **${r.shortId}** — ${desc}  \n> ${r.author} · ${new Date(r.timestamp).toLocaleDateString()}`
+        }
+        // Fallback: just show the short commit SHA if we have it
+        const commit = comments.find(c => c.revision === id)?.commit
+        return commit ? `> **${commit.slice(0, 7)}**` : `> ${id.slice(0, 8)}`
+      }).join('\n')
     }
 
     const lines: string[] = ['# Review Comments', '']
-    for (const [file, fileComments] of byFile) {
-      lines.push(`## ${file}`)
-      for (const c of fileComments) {
-        const lineRef = c.line === c.lineEnd ? `Line ${c.line}` : `Lines ${c.line}-${c.lineEnd}`
-        lines.push(`- **${lineRef}**: ${c.content}`)
-      }
-      lines.push('')
+
+    const header = revisionHeader()
+    if (header) lines.push(header, '')
+
+    if (openRoots.length > 0) {
+      lines.push('## Open', '', ...renderSection(openRoots))
+    }
+    if (resolvedRoots.length > 0) {
+      lines.push('## Resolved', '', ...renderSection(resolvedRoots))
     }
 
     return lines.join('\n')

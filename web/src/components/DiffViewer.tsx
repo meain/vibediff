@@ -364,7 +364,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
             {comments.length > 0 && (
               <button
                 onClick={() => {
-                  void navigator.clipboard.writeText(formatCommentsForExport()).then(() => {
+                  void navigator.clipboard.writeText(formatCommentsForExport(revisions)).then(() => {
                     setCopyFeedback(true)
                     setTimeout(() => { setCopyFeedback(false); }, 1500)
                   })
