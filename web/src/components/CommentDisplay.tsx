@@ -136,38 +136,31 @@ function CommentCard({ comment, isReply, onDelete, onUpdate, onResolve, onReopen
               {comment.status}
             </span>
           )}
-          {!isReply && (
-            <span>
-              {comment.lineEnd !== comment.line
-                ? `Lines ${Math.abs(comment.line)}–${Math.abs(comment.lineEnd)}`
-                : `Line ${Math.abs(comment.line)}`}
-            </span>
-          )}
           <span className="text-fg-subtle">·</span>
           <span className="text-fg-subtle">{new Date(comment.createdAt).toLocaleString()}</span>
           {!isReply && comment.commit && (
             <>
               <span className="text-fg-subtle">·</span>
               <span className="text-fg-subtle font-mono" title={comment.commit}>
-                {comment.revision ? `${comment.revision} ` : ''}@{comment.commit.slice(0, 7)}
+                {comment.revision ? `${comment.revision.slice(0, 8)} ` : ''}@{comment.commit.slice(0, 7)}
               </span>
             </>
           )}
         </div>
         <div className="flex items-center gap-1">
-          {!isReply && onResolve && !isResolved && (
+          {!editing && !isReply && onResolve && !isResolved && (
             <button
               onClick={() => { onResolve(comment.id); }}
-              className="text-fg-subtle hover:text-success text-xs px-1.5 py-0.5 rounded hover:bg-success/10 transition-colors cursor-pointer border-none bg-transparent"
+              className="text-fg-subtle hover:text-success text-lg px-2 py-0 rounded hover:bg-success/10 transition-colors cursor-pointer border-none bg-transparent"
               title="Resolve thread"
             >
               ✓
             </button>
           )}
-          {!isReply && onReopen && isResolved && (
+          {!editing && !isReply && onReopen && isResolved && (
             <button
               onClick={() => { onReopen(comment.id); }}
-              className="text-fg-subtle hover:text-accent text-xs px-1.5 py-0.5 rounded hover:bg-accent/10 transition-colors cursor-pointer border-none bg-transparent"
+              className="text-fg-subtle hover:text-accent text-lg px-2 py-0 rounded hover:bg-accent/10 transition-colors cursor-pointer border-none bg-transparent"
               title="Reopen thread"
             >
               ↺
@@ -176,19 +169,21 @@ function CommentCard({ comment, isReply, onDelete, onUpdate, onResolve, onReopen
           {canEdit && !editing && (
             <button
               onClick={() => { setEditing(true); }}
-              className="text-fg-subtle hover:text-fg text-xs px-1.5 py-0.5 rounded hover:bg-surface-inset transition-colors cursor-pointer border-none bg-transparent"
+              className="text-fg-subtle hover:text-fg text-lg px-2 py-0 rounded hover:bg-surface-inset transition-colors cursor-pointer border-none bg-transparent"
               title="Edit comment"
             >
               ✎
             </button>
           )}
-          <button
-            onClick={() => { onDelete(comment.id); }}
-            className="text-fg-subtle hover:text-danger text-sm leading-none px-1 py-0.5 rounded hover:bg-danger/10 transition-colors cursor-pointer border-none bg-transparent"
-            title="Delete comment"
-          >
-            ×
-          </button>
+          {!editing && (
+            <button
+              onClick={() => { onDelete(comment.id); }}
+              className="text-fg-subtle hover:text-danger text-lg px-2 py-0 rounded hover:bg-danger/10 transition-colors cursor-pointer border-none bg-transparent"
+              title="Delete comment"
+            >
+              ×
+            </button>
+          )}
         </div>
       </div>
       {editing ? (
@@ -235,7 +230,7 @@ export default function CommentDisplay({ comments, onDelete, onUpdate, onResolve
   const threads = groupIntoThreads(comments)
 
   return (
-    <div className="mx-4 my-2 space-y-2">
+    <div className="mx-4 my-2 space-y-2 max-w-2xl">
       {threads.map(thread => (
         <div key={thread.root.id}>
           <CommentCard
