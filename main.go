@@ -94,6 +94,11 @@ func main() {
 	// Detect VCS backend (jj or git)
 	backend := gitService.DetectBackend()
 	gitService.SetBackend(backend)
+
+	// Load persisted comments for the initial working directory (best-effort).
+	if wd := gitService.GetWorkingDir(); wd != "" {
+		_ = reviewStore.LoadComments(wd)
+	}
 	if backend == git.BackendJJ {
 		fmt.Fprintln(os.Stderr, "Detected jj repository")
 	}

@@ -22,13 +22,24 @@ export function useComments(currentDirectory?: string, selectedRevision?: string
   const wsContext = useContext(WebSocketContext)
   const lastCommentUpdate = wsContext?.lastCommentUpdate ?? 0
 
-  // Fetch comments on mount, on directory change, and whenever the
+  // Clear stale comments immediately when the scoping context changes so
+  // the copy-comments button and inline threads don't show the previous
+  // revision's data while the fetch is in-flight.
+  useEffect(() => {
+    setComments([])
+  }, [currentDirectory, selectedRevision])
+
+  // Fetch comments on mount, on directory/revision change, and whenever the
   // server broadcasts a comment_changed event (e.g. an agent reply
   // posted through the MCP reply_to_comment tool).
   useEffect(() => {
     const fetchComments = async (): Promise<void> => {
       try {
-        const response = await fetch('/api/review/comments')
+        // Filter by revision so only comments for the current context are shown.
+        // working-copy (null/undefined) → revision="working-copy" (comments with no revision tag)
+        // specific revision → revision=<id>
+        const revParam = selectedRevision ?? 'working-copy'
+        const response = await fetch(`/api/review/comments?revision=${encodeURIComponent(revParam)}`)
         if (response.ok) {
           const data = await response.json() as Comment[]
           setComments(data)
@@ -39,7 +50,7 @@ export function useComments(currentDirectory?: string, selectedRevision?: string
     }
 
     void fetchComments()
-  }, [currentDirectory, lastCommentUpdate])
+  }, [currentDirectory, lastCommentUpdate, selectedRevision])
 
   const addComment = useCallback(async (file: string, line: number, content: string, lineEnd: number) => {
     try {

@@ -134,17 +134,37 @@ func (h *Handler) AddComment(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.reviewStore.AddComment(&comment)
+	_ = h.reviewStore.SaveComments(h.gitService.GetWorkingDir())
 	h.writeJSON(w, comment)
 }
 
 func (h *Handler) GetComments(w http.ResponseWriter, r *http.Request) {
 	file := r.URL.Query().Get("file")
+	revision := r.URL.Query().Get("revision")
 
 	var comments []*review.Comment
 	if file != "" {
 		comments = h.reviewStore.GetComments(file)
 	} else {
 		comments = h.reviewStore.GetAllComments()
+	}
+
+	// Filter by revision when requested:
+	//   revision="" (absent)        → return all comments (backward compat)
+	//   revision="working-copy"     → comments with no revision tag
+	//   revision=<id>               → comments tagged with that revision
+	if revision != "" {
+		filtered := comments[:0]
+		for _, c := range comments {
+			if revision == "working-copy" {
+				if c.Revision == "" {
+					filtered = append(filtered, c)
+				}
+			} else if c.Revision == revision {
+				filtered = append(filtered, c)
+			}
+		}
+		comments = filtered
 	}
 
 	h.writeJSON(w, comments)
@@ -176,6 +196,7 @@ func (h *Handler) DeleteComment(w http.ResponseWriter, r *http.Request) {
 	id := vars["id"]
 
 	if h.reviewStore.DeleteComment(id) {
+		_ = h.reviewStore.SaveComments(h.gitService.GetWorkingDir())
 		w.WriteHeader(http.StatusNoContent)
 	} else {
 		http.Error(w, "Comment not found", http.StatusNotFound)
@@ -190,6 +211,7 @@ func (h *Handler) ResolveComment(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Comment not found", http.StatusNotFound)
 		return
 	}
+	_ = h.reviewStore.SaveComments(h.gitService.GetWorkingDir())
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -202,6 +224,7 @@ func (h *Handler) ReopenComment(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Comment not found", http.StatusNotFound)
 		return
 	}
+	_ = h.reviewStore.SaveComments(h.gitService.GetWorkingDir())
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -283,7 +306,7 @@ func (h *Handler) SetDirectory(w http.ResponseWriter, r *http.Request) {
 
 	h.watcher.SetWorkingDir(req.Directory)
 	h.watcher.SetBackend(h.gitService.GetBackend())
-	h.reviewStore.Clear()
+	_ = h.reviewStore.LoadComments(req.Directory)
 
 	h.writeJSON(w, map[string]string{
 		"directory": req.Directory,

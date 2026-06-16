@@ -47,7 +47,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
   const { lastUpdate } = useWebSocketUpdates()
   const { currentDirectory, backend, changeDirectory, validateDirectory } = useDirectory()
   const { comments, addComment, deleteComment, resolveComment, reopenComment, getCommentsForLine, getCommentRangeLines, formatCommentsForExport } = useComments(currentDirectory, selectedRevision)
-  const { reviewedFiles, toggleReviewed, clearReviewed, validateReviewed } = useReviewedFiles(currentDirectory)
+  const { reviewedFiles, toggleReviewed, clearReviewed, validateReviewed } = useReviewedFiles(currentDirectory, selectedRevision)
   const { revisions, loading: revisionsLoading, refetch: refetchRevisions } = useRevisions()
 
   // Refetch when WebSocket triggers an update

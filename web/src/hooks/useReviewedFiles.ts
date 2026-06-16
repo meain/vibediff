@@ -1,28 +1,49 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import type { FileDiff } from '../types/diff'
 import { computeFileHash } from '../utils/hashUtils'
 import { loadReviewedFiles, saveReviewedFiles } from '../utils/reviewStorage'
 
 /**
  * Custom hook for managing reviewed files with hash-based validation
- * and multi-project persistence
+ * and multi-project / per-revision persistence.
+ *
+ * Reviewed state is scoped to a (projectPath, revision) pair so switching
+ * between commits or directories shows the correct marks for each context.
  */
-export function useReviewedFiles(projectPath: string) {
+export function useReviewedFiles(projectPath: string, selectedRevision?: string | null) {
+  // Composite key that uniquely identifies the (project, revision) context.
+  // null/undefined selectedRevision means the working-copy view.
+  const storageKey = `${projectPath}::${selectedRevision ?? 'working-copy'}`
+
   // Store hashes internally but expose a Set of paths for compatibility
   const [reviewedHashes, setReviewedHashes] = useState<Map<string, string>>(new Map())
   const [reviewedPaths, setReviewedPaths] = useState<Set<string>>(new Set())
 
-  // Load reviewed files when project changes
+  // When the storage key changes both the load and save effects fire in the
+  // same flush. Without a guard the save effect runs first with the previous
+  // render's stale hashes and writes them to the new key, corrupting data for
+  // every revision the user visits. The flag lets the save effect know it
+  // should skip that one run and wait for the subsequent re-render that carries
+  // the freshly-loaded hashes.
+  const justLoadedRef = useRef(false)
+
+  // Load reviewed files when project or revision changes
   useEffect(() => {
-    const loaded = loadReviewedFiles(projectPath)
+    justLoadedRef.current = true
+    const loaded = loadReviewedFiles(storageKey)
     setReviewedHashes(loaded)
     setReviewedPaths(new Set(loaded.keys()))
-  }, [projectPath])
+  }, [storageKey])
 
-  // Save to storage whenever hashes change
+  // Save to storage whenever hashes change, but skip the run that was triggered
+  // by the key change itself (load effect sets the flag for that case).
   useEffect(() => {
-    saveReviewedFiles(projectPath, reviewedHashes)
-  }, [projectPath, reviewedHashes])
+    if (justLoadedRef.current) {
+      justLoadedRef.current = false
+      return
+    }
+    saveReviewedFiles(storageKey, reviewedHashes)
+  }, [storageKey, reviewedHashes])
 
   /**
    * Toggle reviewed status for a file
