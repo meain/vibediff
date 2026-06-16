@@ -107,6 +107,7 @@ interface FileDiffProps {
   getCommentRangeLines?: (file: string, lineOrder: number[]) => Set<number>
   onDeleteComment: (id: string) => Promise<void>
   onUpdateComment?: (id: string, content: string) => Promise<void>
+  onAddReply?: (parentComment: Comment, content: string) => Promise<void>
   onResolveComment?: (id: string) => Promise<void>
   onReopenComment?: (id: string) => Promise<void>
   hideViewFullFile?: boolean
@@ -132,6 +133,7 @@ export default function FileDiff({
   getCommentRangeLines,
   onDeleteComment,
   onUpdateComment,
+  onAddReply,
   onResolveComment,
   onReopenComment,
   hideViewFullFile = false,
@@ -571,6 +573,7 @@ export default function FileDiff({
                                   comments={comments}
                                   onDelete={(id) => { void onDeleteComment(id); }}
                                   onUpdate={onUpdateComment}
+                                  onAddReply={onAddReply}
                                   onResolve={onResolveComment ? (id) => { void onResolveComment(id); } : undefined}
                                   onReopen={onReopenComment ? (id) => { void onReopenComment(id); } : undefined}
                                 />
@@ -639,7 +642,7 @@ export default function FileDiff({
                         comments,
                         lineNumber
                       }
-                    }, onDeleteComment, activeComment && onSubmitComment && onCancelComment ? { activeComment, onSubmitComment, onCancelComment } : null, onResolveComment, onReopenComment, onUpdateComment)}
+                    }, onDeleteComment, activeComment && onSubmitComment && onCancelComment ? { activeComment, onSubmitComment, onCancelComment } : null, onResolveComment, onReopenComment, onUpdateComment, onAddReply)}
                   </React.Fragment>
                   )
                 })}
@@ -670,6 +673,7 @@ function renderSplitView(
   onResolveComment?: (id: string) => Promise<void>,
   onReopenComment?: (id: string) => Promise<void>,
   onUpdateComment?: (id: string, content: string) => Promise<void>,
+  onAddReply?: (parentComment: Comment, content: string) => Promise<void>,
 ): React.ReactNode[] {
   const resolveCb = onResolveComment ? (id: string) => { void onResolveComment(id); } : undefined
   const reopenCb = onReopenComment ? (id: string) => { void onReopenComment(id); } : undefined
@@ -710,6 +714,7 @@ function renderSplitView(
                 comments={result.comments}
                 onDelete={(id) => { void onDeleteComment(id); }}
                 onUpdate={onUpdateComment}
+                onAddReply={onAddReply}
                 onResolve={resolveCb}
                 onReopen={reopenCb}
               />
@@ -739,6 +744,7 @@ function renderSplitView(
                     comments={deleteResult.comments}
                     onDelete={(id) => { void onDeleteComment(id); }}
                     onUpdate={onUpdateComment}
+                    onAddReply={onAddReply}
                     onResolve={resolveCb}
                     onReopen={reopenCb}
                   />
@@ -750,6 +756,7 @@ function renderSplitView(
                     comments={addResult.comments}
                     onDelete={(id) => { void onDeleteComment(id); }}
                     onUpdate={onUpdateComment}
+                    onAddReply={onAddReply}
                     onResolve={resolveCb}
                     onReopen={reopenCb}
                   />
@@ -777,6 +784,7 @@ function renderSplitView(
                   comments={result.comments}
                   onDelete={(id) => { void onDeleteComment(id); }}
                   onUpdate={onUpdateComment}
+                  onAddReply={onAddReply}
                   onResolve={resolveCb}
                   onReopen={reopenCb}
                 />
@@ -805,6 +813,7 @@ function renderSplitView(
                 comments={result.comments}
                 onDelete={(id) => { void onDeleteComment(id); }}
                 onUpdate={onUpdateComment}
+                onAddReply={onAddReply}
                 onResolve={resolveCb}
                 onReopen={reopenCb}
               />

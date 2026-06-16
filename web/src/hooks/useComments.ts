@@ -4,7 +4,7 @@ import { WebSocketContext } from '../contexts/WebSocketContext'
 
 interface UseCommentsReturn {
   comments: Comment[]
-  addComment: (file: string, line: number, content: string, lineEnd: number) => Promise<Comment>
+  addComment: (file: string, line: number, content: string, lineEnd: number, parentId?: string) => Promise<Comment>
   updateComment: (id: string, content: string) => Promise<void>
   deleteComment: (id: string) => Promise<void>
   resolveComment: (id: string) => Promise<void>
@@ -53,13 +53,16 @@ export function useComments(currentDirectory?: string, selectedRevision?: string
     void fetchComments()
   }, [currentDirectory, lastCommentUpdate, selectedRevision])
 
-  const addComment = useCallback(async (file: string, line: number, content: string, lineEnd: number) => {
+  const addComment = useCallback(async (file: string, line: number, content: string, lineEnd: number, parentId?: string) => {
     try {
       // selectedRevision is empty for the working-copy view; the server resolves
       // an empty revision to the working-copy commit (HEAD / @).
       const body: Record<string, unknown> = { file, line, content, lineEnd }
       if (selectedRevision) {
         body.revision = selectedRevision
+      }
+      if (parentId) {
+        body.parentId = parentId
       }
       const response = await fetch('/api/review/comment', {
         method: 'POST',

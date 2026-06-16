@@ -124,6 +124,31 @@ func (h *Handler) AddComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// When parentId is set, inherit file/line/lineEnd/revision from the
+	// parent so callers only need to supply content and parentId. This
+	// also ensures the reply passes through the same getCommentsForLine
+	// filter that the frontend uses (which keys on lineEnd).
+	if comment.ParentID != "" {
+		parent := h.reviewStore.GetByID(comment.ParentID)
+		if parent == nil {
+			http.Error(w, "parent comment not found", http.StatusBadRequest)
+			return
+		}
+		// Only inherit if the caller did not explicitly provide a value.
+		if comment.File == "" {
+			comment.File = parent.File
+		}
+		if comment.Line == 0 {
+			comment.Line = parent.Line
+		}
+		if comment.LineEnd == 0 {
+			comment.LineEnd = parent.LineEnd
+		}
+		if comment.Revision == "" {
+			comment.Revision = parent.Revision
+		}
+	}
+
 	// Pin the underlying commit SHA so the comment remains anchored to
 	// the code the user was looking at, even after working-copy edits.
 	// Best-effort: on resolve failure, leave Commit empty.

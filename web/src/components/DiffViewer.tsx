@@ -530,6 +530,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
                 getCommentRangeLines={getCommentRangeLines}
                 onDeleteComment={deleteComment}
                 onUpdateComment={updateComment}
+                onAddReply={async (parent, content) => { await addComment(parent.file, parent.line, content, parent.lineEnd, parent.id) }}
                 onResolveComment={resolveComment}
                 onReopenComment={reopenComment}
                 wrapLines={wrapLines}
@@ -568,6 +569,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
               getCommentRangeLines={getCommentRangeLines}
               onDeleteComment={deleteComment}
               onUpdateComment={updateComment}
+              onAddReply={async (parent, content) => { await addComment(parent.file, parent.line, content, parent.lineEnd, parent.id) }}
               wrapLines={wrapLines}
               diffType={diffType}
               selectedRevision={selectedRevision}
@@ -609,6 +611,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
         getCommentRangeLines={getCommentRangeLines}
         onDeleteComment={deleteComment}
         onUpdateComment={updateComment}
+        onAddReply={async (parent, content) => { await addComment(parent.file, parent.line, content, parent.lineEnd, parent.id) }}
         onResolveComment={resolveComment}
         onReopenComment={reopenComment}
         onAddComment={(file, line, content, lineEnd) => {
