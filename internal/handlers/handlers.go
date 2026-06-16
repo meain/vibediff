@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/gorilla/mux"
 
@@ -117,11 +118,47 @@ func (h *Handler) GetFileDiff(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, diff)
 }
 
+// validateComment checks required fields and enum values on an incoming
+// comment payload, returning a descriptive error string on the first
+// violation so API callers get actionable feedback.
+func validateComment(c *review.Comment) error {
+	if strings.TrimSpace(c.Content) == "" {
+		return fmt.Errorf("content is required")
+	}
+	if c.ParentID == "" {
+		// Root comment rules
+		if strings.TrimSpace(c.File) == "" {
+			return fmt.Errorf("file is required for root comments (without it the comment cannot be anchored to a diff line and will not appear in the UI)")
+		}
+		if c.Line <= 0 {
+			return fmt.Errorf("line must be a positive integer")
+		}
+	}
+	if c.Author != "" && c.Author != review.AuthorUser && c.Author != review.AuthorAgent {
+		return fmt.Errorf("author must be %q or %q, got %q", review.AuthorUser, review.AuthorAgent, c.Author)
+	}
+	if c.Status != "" && c.Status != review.StatusOpen && c.Status != review.StatusResolved {
+		return fmt.Errorf("status must be %q or %q, got %q", review.StatusOpen, review.StatusResolved, c.Status)
+	}
+	return nil
+}
+
 func (h *Handler) AddComment(w http.ResponseWriter, r *http.Request) {
 	var comment review.Comment
 	if err := json.NewDecoder(r.Body).Decode(&comment); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
+	}
+
+	if err := validateComment(&comment); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Default lineEnd to line when not provided so the frontend's
+	// getCommentsForLine filter (which keys on lineEnd) can find the comment.
+	if comment.LineEnd == 0 {
+		comment.LineEnd = comment.Line
 	}
 
 	// When parentId is set, inherit file/line/lineEnd/revision from the

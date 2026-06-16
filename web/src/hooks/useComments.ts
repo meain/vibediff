@@ -132,7 +132,8 @@ export function useComments(currentDirectory?: string, selectedRevision?: string
   }, [])
 
   const getCommentsForLine = useCallback((file: string, line: number) => {
-    return comments.filter(c => c.file === file && c.lineEnd === line)
+    // lineEnd === 0 means the API caller omitted it; treat it as equal to line.
+    return comments.filter(c => c.file === file && (c.lineEnd === line || (c.lineEnd === 0 && c.line === line)))
   }, [comments])
 
   const getCommentRangeLines = useCallback((file: string, lineOrder: number[]): Set<number> => {
