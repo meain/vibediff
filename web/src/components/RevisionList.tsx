@@ -1,5 +1,6 @@
 import type { Revision, VCSBackend } from '../types/diff'
 import CopyButton from './CopyButton'
+import { formatRelativeTime } from '../utils/time'
 
 interface RevisionListProps {
   revisions: Revision[]
@@ -8,25 +9,6 @@ interface RevisionListProps {
   onSelectRevision: (revisionId: string | null) => void
   backend: VCSBackend
   reviewedRevisions?: Set<string>
-}
-
-function formatTimestamp(ts: string): string {
-  try {
-    const date = new Date(ts)
-    const now = new Date()
-    const diffMs = now.getTime() - date.getTime()
-    const diffMins = Math.floor(diffMs / 60000)
-    const diffHours = Math.floor(diffMins / 60)
-    const diffDays = Math.floor(diffHours / 24)
-
-    if (diffMins < 1) return 'just now'
-    if (diffMins < 60) return `${String(diffMins)}m ago`
-    if (diffHours < 24) return `${String(diffHours)}h ago`
-    if (diffDays < 7) return `${String(diffDays)}d ago`
-    return date.toLocaleDateString()
-  } catch {
-    return ts
-  }
 }
 
 export default function RevisionList({
@@ -120,7 +102,7 @@ export default function RevisionList({
             <div className="flex items-center gap-1 mt-0.5 text-[10px] text-fg-muted flex-wrap">
               <span className="truncate">{rev.author}</span>
               <span>·</span>
-              <span className="shrink-0">{formatTimestamp(rev.timestamp)}</span>
+              <span className="shrink-0">{formatRelativeTime(rev.timestamp)}</span>
               {rev.bookmarks && rev.bookmarks.map((b) => (
                 <span
                   key={b}

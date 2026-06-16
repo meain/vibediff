@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import type { Comment } from '../types/diff'
+import { formatRelativeTime } from '../utils/time'
 
 interface CommentDisplayProps {
   comments: Comment[]
@@ -78,7 +79,6 @@ function CommentCard({ comment, isReply, onDelete, onUpdate, onResolve, onReopen
   useEffect(() => {
     if (editing) {
       textareaRef.current?.focus()
-      textareaRef.current?.select()
     }
   }, [editing])
 
@@ -137,7 +137,7 @@ function CommentCard({ comment, isReply, onDelete, onUpdate, onResolve, onReopen
             </span>
           )}
           <span className="text-fg-subtle">·</span>
-          <span className="text-fg-subtle">{new Date(comment.createdAt).toLocaleString()}</span>
+          <span className="text-fg-subtle" title={new Date(comment.createdAt).toLocaleString()}>{formatRelativeTime(comment.createdAt)}</span>
           {!isReply && comment.commit && (
             <>
               <span className="text-fg-subtle">·</span>
@@ -148,6 +148,15 @@ function CommentCard({ comment, isReply, onDelete, onUpdate, onResolve, onReopen
           )}
         </div>
         <div className="flex items-center gap-1">
+          {canEdit && !editing && (
+            <button
+              onClick={() => { setEditing(true); }}
+              className="text-fg-subtle hover:text-fg text-lg px-2 py-0 rounded hover:bg-surface-inset transition-colors cursor-pointer border-none bg-transparent"
+              title="Edit comment"
+            >
+              ✎
+            </button>
+          )}
           {!editing && !isReply && onResolve && !isResolved && (
             <button
               onClick={() => { onResolve(comment.id); }}
@@ -164,15 +173,6 @@ function CommentCard({ comment, isReply, onDelete, onUpdate, onResolve, onReopen
               title="Reopen thread"
             >
               ↺
-            </button>
-          )}
-          {canEdit && !editing && (
-            <button
-              onClick={() => { setEditing(true); }}
-              className="text-fg-subtle hover:text-fg text-lg px-2 py-0 rounded hover:bg-surface-inset transition-colors cursor-pointer border-none bg-transparent"
-              title="Edit comment"
-            >
-              ✎
             </button>
           )}
           {!editing && (
