@@ -24,16 +24,16 @@ interface DiffViewerProps {
 }
 
 export default function DiffViewer({ className = '' }: DiffViewerProps): React.ReactElement {
-  const [diffType, setDiffType] = useState<DiffType>('all')
-  const [viewMode, setViewMode] = useState<ViewMode>('unified')
+  const [diffType, setDiffType] = useState<DiffType>(() => (localStorage.getItem('diffType') as DiffType | null) ?? 'all')
+  const [viewMode, setViewMode] = useState<ViewMode>(() => (localStorage.getItem('viewMode') as ViewMode | null) ?? 'unified')
   const [selectedFile, setSelectedFile] = useState<FileDiffType | null>(null)
-  const [displayMode, setDisplayMode] = useState<'single' | 'all'>('single')
+  const [displayMode, setDisplayMode] = useState<'single' | 'all'>(() => (localStorage.getItem('displayMode') as 'single' | 'all' | null) ?? 'single')
   const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(new Set())
   const [commentDialog, setCommentDialog] = useState<{ file: string; line: number; lineEnd: number } | null>(null)
   const [fullFileModal, setFullFileModal] = useState<string | null>(null)
-  const [fileViewMode, setFileViewMode] = useState<'list' | 'tree'>('list')
+  const [fileViewMode, setFileViewMode] = useState<'list' | 'tree'>(() => (localStorage.getItem('sidebarView') as 'list' | 'tree' | null) ?? 'list')
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set())
-  const [wrapLines, setWrapLines] = useState<boolean>(true)
+  const [wrapLines, setWrapLines] = useState<boolean>(() => { const v = localStorage.getItem('wrapLines'); return v !== null ? v === 'true' : true })
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
   const [selectedRevision, setSelectedRevision] = useState<string | null>(() => {
@@ -88,12 +88,6 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
 
   // Load preferences from localStorage
   useEffect(() => {
-    const savedViewMode = localStorage.getItem('viewMode') as ViewMode | null
-    if (savedViewMode !== null) setViewMode(savedViewMode)
-
-    const savedDisplayMode = localStorage.getItem('displayMode') as 'single' | 'all' | null
-    if (savedDisplayMode !== null) setDisplayMode(savedDisplayMode)
-
     const savedCollapsed = localStorage.getItem('collapsedFiles')
     if (savedCollapsed) {
       try {
@@ -102,9 +96,6 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
         console.error('Failed to parse collapsed files', e)
       }
     }
-
-    const savedFileViewMode = localStorage.getItem('sidebarView') as 'list' | 'tree' | null
-    if (savedFileViewMode !== null) setFileViewMode(savedFileViewMode)
 
     const savedCollapsedFolders = localStorage.getItem('collapsedFolders')
     if (savedCollapsedFolders) {
@@ -115,9 +106,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
       }
     }
 
-    const savedWrapLines = localStorage.getItem('wrapLines')
-    if (savedWrapLines !== null) setWrapLines(savedWrapLines === 'true')
-  }, [])
+  }, []) // viewMode, displayMode, diffType, wrapLines are initialized lazily from localStorage above
 
   // Sync selected revision and file to URL params
   useEffect(() => {
@@ -131,6 +120,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
 
   // Save preferences using the custom hook
   useLocalStorage('viewMode', viewMode)
+  useLocalStorage('diffType', diffType)
   useLocalStorage('displayMode', displayMode)
   useLocalStorage('collapsedFiles', collapsedFiles)
   useLocalStorage('sidebarView', fileViewMode)
