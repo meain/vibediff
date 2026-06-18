@@ -14,41 +14,16 @@
       {
         devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [
-            # Go toolchain
             go
             gopls
-            gotools
-            go-tools
             golangci-lint
-
-            # Node.js toolchain
             nodejs
-
-            # Build tools
             go-task
-
-            # Git (for runtime)
-            git
+            entr
           ];
 
           shellHook = ''
-            echo "VibeDiff development environment"
-            echo "================================"
-            echo "Go version: $(go version)"
-            echo "Node version: $(node --version)"
-            echo "npm version: $(npm --version)"
-            echo ""
-            echo "Available commands:"
-            echo "  task run        - Run backend (serves embedded assets)"
-            echo "  task build      - Build single binary with embedded web assets"
-            echo "  task test       - Run backend tests"
-            echo "  task lint       - Run Go linting"
-            echo "  task fmt        - Format Go code"
-            echo ""
-            echo "  cd web && npm install  - Install frontend dependencies"
-            echo "  cd web && npm run dev  - Run frontend dev server"
-            echo "  cd web && npm test     - Run frontend tests"
-            echo ""
+            echo "Dev: task dev  ->  http://localhost:5173"
           '';
         };
       }

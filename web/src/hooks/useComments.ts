@@ -13,6 +13,8 @@ interface UseCommentsReturn {
   getCommentsForLine: (file: string, line: number) => Comment[]
   getCommentRangeLines: (file: string, lineOrder: number[]) => Set<number>
   formatCommentsForExport: (revisions?: Revision[]) => string
+  formatPendingCommentsForExport: (revisions?: Revision[]) => string
+  clearComments: () => Promise<void>
 }
 
 export function useComments(currentDirectory?: string, selectedRevision?: string | null): UseCommentsReturn {
@@ -227,6 +229,64 @@ export function useComments(currentDirectory?: string, selectedRevision?: string
     return lines.join('\n')
   }, [comments])
 
+  const formatPendingCommentsForExport = useCallback((revisions?: Revision[]) => {
+    const pendingRoots = comments.filter(c => !c.parentId && c.status === 'open')
+    if (pendingRoots.length === 0) return ''
+
+    const threads = new Map(groupIntoThreads(comments).map(t => [t.root.id, t]))
+    const authorLabel = (c: Comment): string => c.author === 'agent' ? 'Agent' : 'User'
+    const revMap = new Map<string, Revision>()
+    for (const r of revisions ?? []) revMap.set(r.id, r)
+
+    const revisionHeader = (): string => {
+      const ids = [...new Set(pendingRoots.filter(c => !!c.revision).map(c => c.revision as string))]
+      if (ids.length === 0) return ''
+      return ids.map(id => {
+        const r = revMap.get(id)
+        if (r) return `> **${r.shortId}** — ${r.description || '(no description)'}  \n> ${r.author} · ${new Date(r.timestamp).toLocaleDateString()}`
+        const commit = comments.find(c => c.revision === id)?.commit
+        return commit ? `> **${commit.slice(0, 7)}**` : `> ${id.slice(0, 8)}`
+      }).join('\n')
+    }
+
+    const byFile = new Map<string, Comment[]>()
+    for (const c of pendingRoots) {
+      const list = byFile.get(c.file) ?? []
+      list.push(c)
+      byFile.set(c.file, list)
+    }
+
+    const lines: string[] = ['# Pending Review Comments', '']
+    const header = revisionHeader()
+    if (header) lines.push(header, '')
+    for (const [file, roots] of byFile) {
+      lines.push(`### ${file}`, '')
+      for (const root of roots) {
+        const lineRef = root.line === root.lineEnd
+          ? `Line ${Math.abs(root.line)}`
+          : `Lines ${Math.abs(root.line)}–${Math.abs(root.lineEnd)}`
+        lines.push(`- **${lineRef}** [${authorLabel(root)}]: ${root.content}`)
+        const thread = threads.get(root.id)
+        if (thread) {
+          for (const reply of thread.replies) lines.push(`  - [${authorLabel(reply)}]: ${reply.content}`)
+        }
+      }
+      lines.push('')
+    }
+    return lines.join('\n')
+  }, [comments])
+
+  const clearComments = useCallback(async () => {
+    try {
+      const response = await fetch('/api/review/comments', { method: 'DELETE' })
+      if (!response.ok) throw new Error('Failed to clear comments')
+      setComments([])
+    } catch (error) {
+      console.error('Failed to clear comments:', error)
+      throw error
+    }
+  }, [])
+
   return {
     comments,
     addComment,
@@ -236,6 +296,8 @@ export function useComments(currentDirectory?: string, selectedRevision?: string
     reopenComment,
     getCommentsForLine,
     getCommentRangeLines,
-    formatCommentsForExport
+    formatCommentsForExport,
+    formatPendingCommentsForExport,
+    clearComments,
   }
 }

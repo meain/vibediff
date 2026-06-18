@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import type { DiffType, ViewMode, FileDiff as FileDiffType } from '../types/diff'
 import { useDiff } from '../hooks/useDiff'
 import { useComments } from '../hooks/useComments'
@@ -14,7 +14,7 @@ import FileList from './FileList'
 import FileDiff from './FileDiff'
 import FullFileModal from './FullFileModal'
 import HelpModal from './HelpModal'
-import DarkModeToggle from './DarkModeToggle'
+import SettingsPanel from './SettingsPanel'
 import DirectorySwitcher from './DirectorySwitcher'
 import RevisionList from './RevisionList'
 import CommitSummary from './CommitSummary'
@@ -45,12 +45,23 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
 
   const { data, loading, error, refetch } = useDiff(diffType, selectedRevision)
   const [copyFeedback, setCopyFeedback] = useState(false)
+  const [copyAllFeedback, setCopyAllFeedback] = useState(false)
+  const [showComments, setShowComments] = useState(true)
   const { lastUpdate } = useWebSocketUpdates()
   const { currentDirectory, backend, changeDirectory, validateDirectory } = useDirectory()
-  const { comments, addComment, updateComment, deleteComment, resolveComment, reopenComment, getCommentsForLine, getCommentRangeLines, formatCommentsForExport } = useComments(currentDirectory, selectedRevision)
+  const { comments, addComment, updateComment, deleteComment, resolveComment, reopenComment, getCommentsForLine, getCommentRangeLines, formatCommentsForExport, formatPendingCommentsForExport, clearComments } = useComments(currentDirectory, selectedRevision)
   const { reviewedFiles, toggleReviewed, clearReviewed, validateReviewed } = useReviewedFiles(currentDirectory, selectedRevision)
   const { reviewedRevisions, markRevisionReviewed, unmarkRevisionReviewed } = useReviewedRevisions(currentDirectory)
   const { revisions, loading: revisionsLoading, refetch: refetchRevisions } = useRevisions()
+
+  const getCommentsForLineGated = useCallback(
+    (file: string, line: number) => showComments ? getCommentsForLine(file, line) : [],
+    [showComments, getCommentsForLine]
+  )
+  const getCommentRangeLinesGated = useCallback(
+    (file: string, lineOrder: number[]) => showComments ? getCommentRangeLines(file, lineOrder) : new Set<number>(),
+    [showComments, getCommentRangeLines]
+  )
 
   // Refetch when WebSocket triggers an update
   useEffect(() => {
@@ -361,26 +372,40 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
               Wrap Lines
             </button>
 
-{(() => {
+            {(() => {
               const totalThreads = comments.filter(c => !c.parentId).length
               const pendingThreads = comments.filter(c => !c.parentId && c.status === 'open').length
-              return totalThreads > 0 && (
+              return pendingThreads > 0 && (
                 <button
                   onClick={() => {
-                    void navigator.clipboard.writeText(formatCommentsForExport(revisions)).then(() => {
+                    void navigator.clipboard.writeText(formatPendingCommentsForExport(revisions)).then(() => {
                       setCopyFeedback(true)
                       setTimeout(() => { setCopyFeedback(false); }, 1500)
                     })
                   }}
                   className={getButtonClassName(false, 'single')}
-                  title="Copy all review comments as markdown"
+                  title="Copy pending review comments as markdown"
                 >
-                  {copyFeedback ? 'Copied!' : `Copy Comments (${pendingThreads} pending / ${totalThreads} total)`}
+                  {copyFeedback ? 'Copied!' : `Copy Comments (${pendingThreads}/${totalThreads})`}
                 </button>
               )
             })()}
 
-            <DarkModeToggle />
+            <SettingsPanel
+              showComments={showComments}
+              onToggleComments={() => { setShowComments(v => !v); }}
+              onClearComments={() => { void clearComments(); }}
+              onClearReviewed={clearReviewed}
+              onCopyAllComments={() => {
+                void navigator.clipboard.writeText(formatCommentsForExport(revisions)).then(() => {
+                  setCopyAllFeedback(true)
+                  setTimeout(() => { setCopyAllFeedback(false); }, 1500)
+                })
+              }}
+              copyAllFeedback={copyAllFeedback}
+              hasComments={comments.length > 0}
+              hasReviewed={reviewedFiles.size > 0}
+            />
             </div>
           </div>
         </div>
@@ -530,8 +555,8 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
                 onToggleCollapse={() => { toggleFileCollapse(file.path); }}
                 onAddComment={(line, lineEnd) => { setCommentDialog({ file: file.path, line, lineEnd }); }}
                 onViewFullFile={() => { setFullFileModal(file.path); }}
-                getCommentsForLine={getCommentsForLine}
-                getCommentRangeLines={getCommentRangeLines}
+                getCommentsForLine={getCommentsForLineGated}
+                getCommentRangeLines={getCommentRangeLinesGated}
                 onDeleteComment={deleteComment}
                 onUpdateComment={updateComment}
                 onAddReply={async (parent, content) => { await addComment(parent.file, parent.line, content, parent.lineEnd, parent.id) }}
@@ -542,8 +567,8 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
                 selectedRevision={selectedRevision}
                 isReviewed={reviewedFiles.has(file.path)}
                 onToggleReviewed={() => { handleToggleReviewed(file); }}
-                commentCount={comments.filter(c => c.file === file.path && !c.parentId).length}
-                pendingCommentCount={comments.filter(c => c.file === file.path && !c.parentId && c.status === 'open').length}
+                commentCount={showComments ? comments.filter(c => c.file === file.path && !c.parentId).length : 0}
+                pendingCommentCount={showComments ? comments.filter(c => c.file === file.path && !c.parentId && c.status === 'open').length : 0}
                 activeComment={commentDialog?.file === file.path ? { line: commentDialog.line, lineEnd: commentDialog.lineEnd } : null}
                 onSubmitComment={(content) => {
                   if (commentDialog) {
@@ -570,8 +595,8 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
               onToggleCollapse={() => { /* Single file view doesn't collapse */ }}
               onAddComment={(line, lineEnd) => { setCommentDialog({ file: selectedFile.path, line, lineEnd }); }}
               onViewFullFile={() => { setFullFileModal(selectedFile.path); }}
-              getCommentsForLine={getCommentsForLine}
-              getCommentRangeLines={getCommentRangeLines}
+              getCommentsForLine={getCommentsForLineGated}
+              getCommentRangeLines={getCommentRangeLinesGated}
               onDeleteComment={deleteComment}
               onUpdateComment={updateComment}
               onAddReply={async (parent, content) => { await addComment(parent.file, parent.line, content, parent.lineEnd, parent.id) }}
@@ -580,8 +605,8 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
               selectedRevision={selectedRevision}
               isReviewed={reviewedFiles.has(selectedFile.path)}
               onToggleReviewed={() => { handleToggleReviewed(selectedFile); }}
-              commentCount={comments.filter(c => c.file === selectedFile.path && !c.parentId).length}
-              pendingCommentCount={comments.filter(c => c.file === selectedFile.path && !c.parentId && c.status === 'open').length}
+              commentCount={showComments ? comments.filter(c => c.file === selectedFile.path && !c.parentId).length : 0}
+              pendingCommentCount={showComments ? comments.filter(c => c.file === selectedFile.path && !c.parentId && c.status === 'open').length : 0}
               activeComment={commentDialog?.file === selectedFile.path ? { line: commentDialog.line, lineEnd: commentDialog.lineEnd } : null}
               onSubmitComment={(content) => {
                 if (commentDialog) {
@@ -613,8 +638,8 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
         filePath={fullFileModal ?? ''}
         onClose={() => { setFullFileModal(null); }}
         viewMode={viewMode}
-        getCommentsForLine={getCommentsForLine}
-        getCommentRangeLines={getCommentRangeLines}
+        getCommentsForLine={getCommentsForLineGated}
+        getCommentRangeLines={getCommentRangeLinesGated}
         onDeleteComment={deleteComment}
         onUpdateComment={updateComment}
         onAddReply={async (parent, content) => { await addComment(parent.file, parent.line, content, parent.lineEnd, parent.id) }}

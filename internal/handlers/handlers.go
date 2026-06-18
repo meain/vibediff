@@ -289,6 +289,15 @@ func (h *Handler) DeleteComment(w http.ResponseWriter, r *http.Request) {
 
 // ResolveComment marks a comment as resolved. Driven by the UI; the agent
 // has no equivalent tool.
+// ClearAllComments removes every comment from the store and persists the empty state.
+func (h *Handler) ClearAllComments(w http.ResponseWriter, r *http.Request) {
+	h.reviewStore.Clear()
+	_ = h.reviewStore.SaveComments(h.gitService.GetWorkingDir())
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// ResolveComment marks a comment as resolved. Driven by the UI; the agent
+// has no equivalent tool.
 func (h *Handler) ResolveComment(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	if !h.reviewStore.SetStatus(vars["id"], review.StatusResolved) {

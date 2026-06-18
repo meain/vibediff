@@ -16,13 +16,23 @@ tasks:
     cmds:
       - task --list
 
-  run:
-    desc: Run the VibeDiff server
+  dev:
+    desc: Run backend + frontend dev server (open http://localhost:5173)
+    deps: [serve, web-dev]
+
+  serve:
+    desc: Run backend without opening a browser (auto-reloads on Go file changes)
     cmds:
-      - go run main.go
+      - find . -name '*.go' -not -path './web/*' | entr -r go run main.go --no-open
+
+  web-dev:
+    desc: Run frontend dev server with HMR
+    dir: web
+    cmds:
+      - npm run dev
 
   build:
-    desc: Build the VibeDiff binary with embedded web assets
+    desc: Build single binary with embedded web assets
     deps: [build-web]
     cmds:
       - go build -ldflags "{{.LDFLAGS}}" -o vibediff .
@@ -30,7 +40,7 @@ tasks:
       CGO_ENABLED: 0
 
   build-web:
-    desc: Build the React web application
+    desc: Build the React frontend
     dir: web
     cmds:
       - npm run build
@@ -41,15 +51,8 @@ tasks:
     cmds:
       - go install -ldflags "{{.LDFLAGS}}"
 
-  install-command:
-    desc: Install the /vibediff slash command for Claude Code at user scope
-    cmds:
-      - mkdir -p $HOME/.claude/commands
-      - cp docs/vibediff-command.md $HOME/.claude/commands/vibediff.md
-      - echo "Installed /vibediff at $HOME/.claude/commands/vibediff.md"
-
   test:
-    desc: Run tests
+    desc: Run all tests
     cmds:
       - go test ./...
 
@@ -59,39 +62,24 @@ tasks:
       - golangci-lint run
 
   fmt:
-    desc: Format code
+    desc: Format Go code
     cmds:
       - go fmt ./...
 
-  tidy:
-    desc: Tidy go modules
-    cmds:
-      - go mod tidy
 
   clean:
     desc: Clean build artifacts
     cmds:
-      - rm -f vibediff
-      - rm -f vibediff-*
+      - rm -f vibediff vibediff-*
       - rm -rf web/dist
 
-  version:
-    desc: Show version information
-    silent: true
-    cmds:
-      - echo "Version {{.VERSION}}"
-      - echo "Commit {{.COMMIT}}"
-      - echo "Build date {{.BUILD_DATE}}"
-
   release:
-    desc: Build release binaries for multiple platforms
+    desc: Build release binaries for all platforms
     deps: [build-web]
+    env:
+      CGO_ENABLED: 0
     cmds:
       - GOOS=linux GOARCH=amd64 go build -ldflags "{{.LDFLAGS}}" -o vibediff-linux-amd64 .
       - GOOS=linux GOARCH=arm64 go build -ldflags "{{.LDFLAGS}}" -o vibediff-linux-arm64 .
       - GOOS=darwin GOARCH=amd64 go build -ldflags "{{.LDFLAGS}}" -o vibediff-darwin-amd64 .
       - GOOS=darwin GOARCH=arm64 go build -ldflags "{{.LDFLAGS}}" -o vibediff-darwin-arm64 .
-      - GOOS=windows GOARCH=amd64 go build -ldflags "{{.LDFLAGS}}" -o vibediff-windows-amd64.exe .
-      - GOOS=windows GOARCH=arm64 go build -ldflags "{{.LDFLAGS}}" -o vibediff-windows-arm64.exe .
-    env:
-      CGO_ENABLED: 0
