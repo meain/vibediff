@@ -117,6 +117,7 @@ interface FileDiffProps {
   isReviewed?: boolean
   onToggleReviewed?: () => void
   commentCount?: number
+  pendingCommentCount?: number
   activeComment?: { line: number; lineEnd: number } | null
   onSubmitComment?: (content: string) => void
   onCancelComment?: () => void
@@ -143,6 +144,7 @@ export default function FileDiff({
   isReviewed = false,
   onToggleReviewed,
   commentCount = 0,
+  pendingCommentCount = 0,
   activeComment = null,
   onSubmitComment,
   onCancelComment
@@ -485,7 +487,7 @@ export default function FileDiff({
               <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.076-4.076a1.526 1.526 0 011.037-.443 48.282 48.282 0 005.68-.494c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
               </svg>
-              {commentCount}
+              {pendingCommentCount > 0 ? `${pendingCommentCount} / ${commentCount}` : commentCount}
             </span>
           )}
 

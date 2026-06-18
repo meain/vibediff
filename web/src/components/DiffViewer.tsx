@@ -361,20 +361,24 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
               Wrap Lines
             </button>
 
-            {comments.length > 0 && (
-              <button
-                onClick={() => {
-                  void navigator.clipboard.writeText(formatCommentsForExport(revisions)).then(() => {
-                    setCopyFeedback(true)
-                    setTimeout(() => { setCopyFeedback(false); }, 1500)
-                  })
-                }}
-                className={getButtonClassName(false, 'single')}
-                title="Copy all review comments as markdown"
-              >
-                {copyFeedback ? 'Copied!' : `Copy Comments (${comments.length})`}
-              </button>
-            )}
+{(() => {
+              const totalThreads = comments.filter(c => !c.parentId).length
+              const pendingThreads = comments.filter(c => !c.parentId && c.status === 'open').length
+              return totalThreads > 0 && (
+                <button
+                  onClick={() => {
+                    void navigator.clipboard.writeText(formatCommentsForExport(revisions)).then(() => {
+                      setCopyFeedback(true)
+                      setTimeout(() => { setCopyFeedback(false); }, 1500)
+                    })
+                  }}
+                  className={getButtonClassName(false, 'single')}
+                  title="Copy all review comments as markdown"
+                >
+                  {copyFeedback ? 'Copied!' : `Copy Comments (${pendingThreads} pending / ${totalThreads} total)`}
+                </button>
+              )
+            })()}
 
             <DarkModeToggle />
             </div>
@@ -538,7 +542,8 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
                 selectedRevision={selectedRevision}
                 isReviewed={reviewedFiles.has(file.path)}
                 onToggleReviewed={() => { handleToggleReviewed(file); }}
-                commentCount={comments.filter(c => c.file === file.path).length}
+                commentCount={comments.filter(c => c.file === file.path && !c.parentId).length}
+                pendingCommentCount={comments.filter(c => c.file === file.path && !c.parentId && c.status === 'open').length}
                 activeComment={commentDialog?.file === file.path ? { line: commentDialog.line, lineEnd: commentDialog.lineEnd } : null}
                 onSubmitComment={(content) => {
                   if (commentDialog) {
@@ -575,7 +580,8 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
               selectedRevision={selectedRevision}
               isReviewed={reviewedFiles.has(selectedFile.path)}
               onToggleReviewed={() => { handleToggleReviewed(selectedFile); }}
-              commentCount={comments.filter(c => c.file === selectedFile.path).length}
+              commentCount={comments.filter(c => c.file === selectedFile.path && !c.parentId).length}
+              pendingCommentCount={comments.filter(c => c.file === selectedFile.path && !c.parentId && c.status === 'open').length}
               activeComment={commentDialog?.file === selectedFile.path ? { line: commentDialog.line, lineEnd: commentDialog.lineEnd } : null}
               onSubmitComment={(content) => {
                 if (commentDialog) {
