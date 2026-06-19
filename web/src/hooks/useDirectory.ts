@@ -50,13 +50,13 @@ export function useDirectory(): UseDirectoryReturn {
     }
   }, [])
 
-  // On mount: load directories and set the first one as current
+  // On mount: load directories, restore last-used dir (falling back to first in list)
   useEffect(() => {
     void (async () => {
       const dirs = await fetchDirectories()
-      if (dirs.length > 0) {
-        setCurrentDirectoryState(dirs[0])
-      }
+      if (dirs.length === 0) return
+      const saved = localStorage.getItem('lastDirectory')
+      setCurrentDirectoryState(saved && dirs.includes(saved) ? saved : dirs[0])
     })()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -66,6 +66,7 @@ export function useDirectory(): UseDirectoryReturn {
   }, [currentDirectory, fetchBackend])
 
   const setCurrentDirectory = useCallback((dir: string) => {
+    localStorage.setItem('lastDirectory', dir)
     setCurrentDirectoryState(dir)
   }, [])
 
@@ -85,6 +86,7 @@ export function useDirectory(): UseDirectoryReturn {
       const data = await resp.json() as DirectoryInfo
       if (data.backend) setBackend(data.backend)
       await fetchDirectories()
+      localStorage.setItem('lastDirectory', dir)
       setCurrentDirectoryState(dir)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error')
