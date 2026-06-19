@@ -32,7 +32,7 @@ func (p *gitHunkProvider) HunkFor(_ context.Context, c *review.Comment) (Hunk, e
 		return Hunk{}, nil
 	}
 
-	raw, err := p.svc.FileDiffText(c.File, c.Revision, hunkContextLines)
+	raw, err := p.svc.FileDiffText(c.Directory, c.File, c.Revision, hunkContextLines)
 	if err != nil {
 		// Best-effort: a missing diff (e.g. revision no longer reachable)
 		// degrades to empty text rather than failing the whole tool call.
@@ -156,12 +156,12 @@ func (p *gitHunkProvider) driftedAt(c *review.Comment) bool {
 		return false
 	}
 
-	pinned, err := p.svc.FileContentAtCommit(c.Commit, c.File)
+	pinned, err := p.svc.FileContentAtCommit(c.Directory, c.Commit, c.File)
 	if err != nil {
 		return false
 	}
 
-	current, err := p.readWorkingCopy(c.File)
+	current, err := p.readWorkingCopy(c.Directory, c.File)
 	if err != nil {
 		return false
 	}
@@ -169,9 +169,9 @@ func (p *gitHunkProvider) driftedAt(c *review.Comment) bool {
 	return linesDiffer(pinned, current, c.Line, c.LineEnd)
 }
 
-func (p *gitHunkProvider) readWorkingCopy(file string) (string, error) {
+func (p *gitHunkProvider) readWorkingCopy(dir, file string) (string, error) {
 	full := file
-	if dir := p.svc.GetWorkingDir(); dir != "" {
+	if dir != "" {
 		full = filepath.Join(dir, file)
 	}
 	b, err := os.ReadFile(full)

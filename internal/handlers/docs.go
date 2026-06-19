@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"fmt"
 	"net/http"
+	"strings"
 )
 
 //go:embed docs.md
@@ -18,8 +19,12 @@ func (h *Handler) ServeDocsPage(w http.ResponseWriter, r *http.Request) {
 		scheme = "https"
 	}
 	base := fmt.Sprintf("%s://%s", scheme, r.Host)
-	dir := h.gitService.GetWorkingDir()
-	backend := string(h.gitService.GetBackend())
+
+	dirs := h.registry.List()
+	dirStr := strings.Join(dirs, ", ")
+	if dirStr == "" {
+		dirStr = "(none registered)"
+	}
 
 	header := fmt.Sprintf(`# VibeDiff API Reference
 
@@ -28,12 +33,11 @@ func (h *Handler) ServeDocsPage(w http.ResponseWriter, r *http.Request) {
 | Property     | Value          |
 |--------------|----------------|
 | Base URL     | %s             |
-| Project      | %s             |
-| VCS backend  | %s             |
+| Projects     | %s             |
 | UI           | %s/            |
 | MCP endpoint | %s/mcp         |
 
-`, base, dir, backend, base, base)
+`, base, dirStr, base, base)
 
 	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
 	fmt.Fprint(w, header)

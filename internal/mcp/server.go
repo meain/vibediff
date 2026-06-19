@@ -239,6 +239,7 @@ func (s *Server) handleReplyToComment(ctx context.Context, req mcp.CallToolReque
 		Commit:   parent.Commit,
 	}
 	s.store.AddComment(reply)
+	_ = s.store.SaveComments(reply.Directory)
 
 	return mcp.NewToolResultStructuredOnly(map[string]any{
 		"comment": s.buildResponse(ctx, reply),
@@ -263,9 +264,11 @@ func (s *Server) handleDeleteComment(_ context.Context, req mcp.CallToolRequest)
 	if target.ParentID != "" {
 		return mcp.NewToolResultError("delete_comment only operates on thread roots; pass the top-level comment ID, not a reply ID"), nil
 	}
+	dir := target.Directory
 	if !s.store.DeleteComment(id) {
 		return mcp.NewToolResultError(fmt.Sprintf("could not delete thread: %s", id)), nil
 	}
+	_ = s.store.SaveComments(dir)
 	return mcp.NewToolResultStructuredOnly(map[string]any{
 		"deleted": id,
 	}), nil

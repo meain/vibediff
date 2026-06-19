@@ -7,6 +7,7 @@ import CopyButton from './CopyButton'
 interface FullFileModalProps {
   isOpen: boolean
   filePath: string
+  directory: string
   onClose: () => void
   viewMode: 'unified' | 'split'
   getCommentsForLine: (file: string, line: number) => Comment[]
@@ -22,7 +23,7 @@ interface FullFileModalProps {
   selectedRevision?: string | null
 }
 
-export default function FullFileModal({ isOpen, filePath, onClose, viewMode, getCommentsForLine, getCommentRangeLines, onDeleteComment, onUpdateComment, onAddReply, onResolveComment, onReopenComment, onAddComment, wrapLines = false, diffType = 'all', selectedRevision }: FullFileModalProps): React.ReactElement | null {
+export default function FullFileModal({ isOpen, filePath, directory, onClose, viewMode, getCommentsForLine, getCommentRangeLines, onDeleteComment, onUpdateComment, onAddReply, onResolveComment, onReopenComment, onAddComment, wrapLines = false, diffType = 'all', selectedRevision }: FullFileModalProps): React.ReactElement | null {
   const [fileData, setFileData] = useState<FileDiff | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -33,6 +34,7 @@ export default function FullFileModal({ isOpen, filePath, onClose, viewMode, get
     setError(null)
     try {
       const params = new URLSearchParams()
+      if (directory) params.set('directory', directory)
       if (selectedRevision) {
         params.set('revision', selectedRevision)
       } else {

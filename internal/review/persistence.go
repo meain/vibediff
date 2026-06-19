@@ -31,6 +31,7 @@ func projectCommentsFile(projectDir string) (string, error) {
 }
 
 // SaveComments persists all comments for the given project directory to disk.
+// Only comments whose Directory field matches projectDir are written.
 func (s *Store) SaveComments(projectDir string) error {
 	if projectDir == "" {
 		return nil
@@ -41,9 +42,11 @@ func (s *Store) SaveComments(projectDir string) error {
 	}
 
 	s.mu.RLock()
-	comments := make([]*Comment, 0, len(s.comments))
+	comments := make([]*Comment, 0)
 	for _, c := range s.comments {
-		comments = append(comments, c)
+		if c.Directory == projectDir {
+			comments = append(comments, c)
+		}
 	}
 	s.mu.RUnlock()
 
@@ -54,13 +57,16 @@ func (s *Store) SaveComments(projectDir string) error {
 	return os.WriteFile(file, data, 0o644)
 }
 
-// LoadComments replaces the store contents with comments loaded from disk for
-// the given project directory. If no saved file exists the store is cleared.
+// LoadComments merges comments from disk for the given project directory into
+// the store, stamping each with Directory = projectDir. Unlike the old
+// implementation this does NOT clear the store, so multiple directories can
+// coexist in memory. Each directory is loaded at most once (tracked via
+// loadedDirs); subsequent calls for the same dir are no-ops.
 func (s *Store) LoadComments(projectDir string) error {
 	if projectDir == "" {
-		s.Clear()
 		return nil
 	}
+
 	file, err := projectCommentsFile(projectDir)
 	if err != nil {
 		return err
@@ -68,7 +74,13 @@ func (s *Store) LoadComments(projectDir string) error {
 
 	data, err := os.ReadFile(file)
 	if os.IsNotExist(err) {
-		s.Clear()
+		// Mark as loaded even when no file exists.
+		s.mu.Lock()
+		if s.loadedDirs == nil {
+			s.loadedDirs = make(map[string]bool)
+		}
+		s.loadedDirs[projectDir] = true
+		s.mu.Unlock()
 		return nil
 	}
 	if err != nil {
@@ -82,12 +94,19 @@ func (s *Store) LoadComments(projectDir string) error {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.comments = make(map[string]*Comment, len(comments))
-	s.tombstones = make(map[string]time.Time)
+	if s.loadedDirs == nil {
+		s.loadedDirs = make(map[string]bool)
+	}
+	if s.tombstones == nil {
+		s.tombstones = make(map[string]time.Time)
+	}
+	// Merge: stamp Directory and add to in-memory store.
 	for _, c := range comments {
 		if c != nil {
+			c.Directory = projectDir
 			s.comments[c.ID] = c
 		}
 	}
+	s.loadedDirs[projectDir] = true
 	return nil
 }

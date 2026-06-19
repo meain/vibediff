@@ -8,17 +8,21 @@ interface UseRevisionsReturn {
   refetch: () => void
 }
 
-export function useRevisions(): UseRevisionsReturn {
+export function useRevisions(directory: string): UseRevisionsReturn {
   const [revisions, setRevisions] = useState<Revision[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   const fetchRevisions = useCallback(async (showLoading = true): Promise<void> => {
+    if (!directory) return
     try {
       if (showLoading) {
         setLoading(true)
       }
-      const response = await fetch('/api/revisions?limit=50')
+      const params = new URLSearchParams()
+      params.set('directory', directory)
+      params.set('limit', '50')
+      const response = await fetch(`/api/revisions?${params.toString()}`)
       if (!response.ok) {
         throw new Error('Failed to fetch revisions')
       }
@@ -32,7 +36,7 @@ export function useRevisions(): UseRevisionsReturn {
         setLoading(false)
       }
     }
-  }, [])
+  }, [directory])
 
   useEffect(() => {
     void fetchRevisions(true)

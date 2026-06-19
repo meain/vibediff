@@ -3,22 +3,21 @@ import { useEffect, useRef } from 'react'
 interface WSMessage {
   type: string
   timestamp: number
+  directory?: string
 }
 
-export function useWebSocket(onUpdate: () => void, onCommentUpdate?: () => void): void {
+export function useWebSocket(onUpdate: (dir: string) => void, onCommentUpdate?: (dir: string) => void): void {
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isConnectingRef = useRef(false)
   const reconnectAttemptsRef = useRef(0)
 
-  // Store onUpdate in a ref to avoid reconnecting when it changes
+  // Store callbacks in refs to avoid reconnecting when they change.
   const onUpdateRef = useRef(onUpdate)
   useEffect(() => {
     onUpdateRef.current = onUpdate
   }, [onUpdate])
 
-  // Mirror the same pattern for the optional comment-change callback.
-  // Refs avoid tearing down the connection when consumers re-render.
   const onCommentUpdateRef = useRef(onCommentUpdate)
   useEffect(() => {
     onCommentUpdateRef.current = onCommentUpdate
@@ -58,17 +57,18 @@ export function useWebSocket(onUpdate: () => void, onCommentUpdate?: () => void)
         try {
           const data = JSON.parse(String(event.data)) as WSMessage
 
+          const dir = data.directory ?? ''
           if (data.type === 'connected') {
             // Connected to live updates
           } else if (data.type === 'file_changed' || data.type === 'file_added' || data.type === 'file_deleted') {
             // Trigger update after a short delay to ensure git has finished processing
             setTimeout(() => {
-              onUpdateRef.current()
+              onUpdateRef.current(dir)
             }, 300)
           } else if (data.type === 'comment_changed') {
             // Agent reply (or any server-side AddComment) — re-fetch
             // comments without paying for a diff refresh.
-            onCommentUpdateRef.current?.()
+            onCommentUpdateRef.current?.(dir)
           }
         } catch (error) {
           console.error('Error parsing WebSocket message:', error)

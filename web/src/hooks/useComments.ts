@@ -43,7 +43,10 @@ export function useComments(currentDirectory?: string, selectedRevision?: string
         // working-copy (null/undefined) → revision="working-copy" (comments with no revision tag)
         // specific revision → revision=<id>
         const revParam = selectedRevision ?? 'working-copy'
-        const response = await fetch(`/api/review/comments?revision=${encodeURIComponent(revParam)}`)
+        const params = new URLSearchParams()
+        if (currentDirectory) params.set('directory', currentDirectory)
+        params.set('revision', revParam)
+        const response = await fetch(`/api/review/comments?${params.toString()}`)
         if (response.ok) {
           const data = await response.json() as Comment[]
           setComments(data)
@@ -60,7 +63,7 @@ export function useComments(currentDirectory?: string, selectedRevision?: string
     try {
       // selectedRevision is empty for the working-copy view; the server resolves
       // an empty revision to the working-copy commit (HEAD / @).
-      const body: Record<string, unknown> = { file, line, content, lineEnd }
+      const body: Record<string, unknown> = { file, line, content, lineEnd, directory: currentDirectory }
       if (selectedRevision) {
         body.revision = selectedRevision
       }
@@ -278,14 +281,16 @@ export function useComments(currentDirectory?: string, selectedRevision?: string
 
   const clearComments = useCallback(async () => {
     try {
-      const response = await fetch('/api/review/comments', { method: 'DELETE' })
+      const params = new URLSearchParams()
+      if (currentDirectory) params.set('directory', currentDirectory)
+      const response = await fetch(`/api/review/comments?${params.toString()}`, { method: 'DELETE' })
       if (!response.ok) throw new Error('Failed to clear comments')
       setComments([])
     } catch (error) {
       console.error('Failed to clear comments:', error)
       throw error
     }
-  }, [])
+  }, [currentDirectory])
 
   return {
     comments,

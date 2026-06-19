@@ -10,33 +10,40 @@ import (
 	"github.com/malvex/vibediff/internal/git"
 )
 
-// GitWatcher monitors VCS status for changes
+// ChangeNotifier interface for notifying changes (includes directory).
+type ChangeNotifier interface {
+	NotifyChange(changeType string, dir string)
+}
+
+// DirectoryLister provides the list of directories to watch.
+type DirectoryLister interface {
+	List() []string
+}
+
+// GitWatcher monitors VCS status for changes across all registered directories.
 type GitWatcher struct {
 	hub          ChangeNotifier
-	lastStatus   string
+	service      *git.Service
+	registry     DirectoryLister
+	lastStatus   map[string]string
 	pollInterval time.Duration
 	done         chan bool
-	workingDir   string
-	backend      git.VCSBackend
 	mu           sync.Mutex
 }
 
-// ChangeNotifier interface for notifying changes
-type ChangeNotifier interface {
-	NotifyChange(changeType string)
-}
-
-// NewGitWatcher creates a new VCS watcher
-func NewGitWatcher(hub ChangeNotifier, backend git.VCSBackend) *GitWatcher {
+// NewGitWatcher creates a new multi-directory VCS watcher.
+func NewGitWatcher(hub ChangeNotifier, service *git.Service, registry DirectoryLister) *GitWatcher {
 	return &GitWatcher{
 		hub:          hub,
+		service:      service,
+		registry:     registry,
+		lastStatus:   make(map[string]string),
 		pollInterval: 1 * time.Second,
 		done:         make(chan bool),
-		backend:      backend,
 	}
 }
 
-// Start begins monitoring for changes
+// Start begins monitoring for changes.
 func (w *GitWatcher) Start() {
 	go func() {
 		ticker := time.NewTicker(w.pollInterval)
@@ -45,7 +52,7 @@ func (w *GitWatcher) Start() {
 		for {
 			select {
 			case <-ticker.C:
-				w.checkForChanges()
+				w.checkAllDirs()
 			case <-w.done:
 				if os.Getenv("VIBEDIFF_DEBUG") == "true" {
 					log.Println("VCS watcher stopped")
@@ -56,7 +63,7 @@ func (w *GitWatcher) Start() {
 	}()
 }
 
-// Stop stops the watcher
+// Stop stops the watcher.
 func (w *GitWatcher) Stop() {
 	select {
 	case <-w.done:
@@ -66,75 +73,46 @@ func (w *GitWatcher) Stop() {
 	}
 }
 
-func (w *GitWatcher) checkForChanges() {
-	w.mu.Lock()
-	dir := w.workingDir
-	backend := w.backend
-	w.mu.Unlock()
-
-	// Create a temporary service to get raw status
-	svc := git.NewService()
-	if dir != "" {
-		// We just need to set the working dir field without validation
-		// Use a simple approach: set backend and get status
-		svc.SetWorkingDirUnsafe(dir)
+func (w *GitWatcher) checkAllDirs() {
+	dirs := w.registry.List()
+	for _, dir := range dirs {
+		w.checkDir(dir)
 	}
-	svc.SetBackend(backend)
+}
 
-	output, err := svc.StatusRaw()
+func (w *GitWatcher) checkDir(dir string) {
+	output, err := w.service.StatusRaw(dir)
 	if err != nil {
 		if os.Getenv("VIBEDIFF_DEBUG") == "true" {
-			log.Printf("Error checking VCS status: %v", err)
+			log.Printf("Error checking VCS status for %s: %v", dir, err)
 		}
 		return
 	}
 
-	currentStatus := output
-
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	// If the directory changed while we were running, discard stale result
-	if w.workingDir != dir {
+	last := w.lastStatus[dir]
+	if output == last {
 		return
 	}
+	w.lastStatus[dir] = output
 
-	// Check if status changed
-	if currentStatus != w.lastStatus {
-		w.lastStatus = currentStatus
-
-		// Determine change type
-		changeType := "file_changed"
-		if backend == git.BackendJJ {
-			if strings.Contains(currentStatus, "A ") {
-				changeType = "file_added"
-			} else if strings.Contains(currentStatus, "D ") {
-				changeType = "file_deleted"
-			}
-		} else {
-			if strings.Contains(currentStatus, "??") {
-				changeType = "file_added"
-			} else if strings.Contains(currentStatus, " D ") {
-				changeType = "file_deleted"
-			}
+	backend := w.service.GetBackend(dir)
+	changeType := "file_changed"
+	if backend == git.BackendJJ {
+		if strings.Contains(output, "A ") {
+			changeType = "file_added"
+		} else if strings.Contains(output, "D ") {
+			changeType = "file_deleted"
 		}
-
-		w.hub.NotifyChange(changeType)
+	} else {
+		if strings.Contains(output, "??") {
+			changeType = "file_added"
+		} else if strings.Contains(output, " D ") {
+			changeType = "file_deleted"
+		}
 	}
-}
 
-// SetWorkingDir changes the working directory for VCS commands
-func (w *GitWatcher) SetWorkingDir(dir string) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	w.workingDir = dir
-	w.lastStatus = "" // Reset to trigger update
-}
-
-// SetBackend changes the VCS backend
-func (w *GitWatcher) SetBackend(backend git.VCSBackend) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	w.backend = backend
-	w.lastStatus = "" // Reset to trigger update
+	w.hub.NotifyChange(changeType, dir)
 }

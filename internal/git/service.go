@@ -6,12 +6,12 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 )
 
 type Service struct {
-	diffTarget string
-	workingDir string // empty string means use process cwd
-	backend    VCSBackend
+	diffTarget   string
+	backendCache sync.Map // string(dir) -> VCSBackend
 }
 
 func NewService() *Service {
@@ -23,24 +23,31 @@ func (s *Service) SetDiffTarget(target string) {
 	s.diffTarget = target
 }
 
-// GetBackend returns the detected VCS backend
-func (s *Service) GetBackend() VCSBackend {
-	return s.backend
+// GetBackend returns the VCS backend for the given directory (cached).
+func (s *Service) GetBackend(dir string) VCSBackend {
+	return s.getBackend(dir)
 }
 
-// DetectBackend detects whether we're in a jj or git repo
-func (s *Service) DetectBackend() VCSBackend {
-	// Check for jj first
-	if s.isJJRepo() {
+func (s *Service) getBackend(dir string) VCSBackend {
+	if v, ok := s.backendCache.Load(dir); ok {
+		return v.(VCSBackend)
+	}
+	backend := s.detectBackend(dir)
+	s.backendCache.Store(dir, backend)
+	return backend
+}
+
+func (s *Service) detectBackend(dir string) VCSBackend {
+	if s.isJJRepo(dir) {
 		return BackendJJ
 	}
 	return BackendGit
 }
 
-func (s *Service) isJJRepo() bool {
+func (s *Service) isJJRepo(dir string) bool {
 	var cmd *exec.Cmd
-	if s.workingDir != "" {
-		cmd = exec.Command("jj", "root", "-R", s.workingDir)
+	if dir != "" {
+		cmd = exec.Command("jj", "root", "-R", dir)
 	} else {
 		cmd = exec.Command("jj", "root")
 	}
@@ -49,19 +56,19 @@ func (s *Service) isJJRepo() bool {
 }
 
 // GetDiff retrieves the diff with optional context lines (default: 3)
-func (s *Service) GetDiff(diffType DiffType, contextLines ...int) (*DiffResult, error) {
+func (s *Service) GetDiff(dir string, diffType DiffType, contextLines ...int) (*DiffResult, error) {
 	context := 3
 	if len(contextLines) > 0 {
 		context = contextLines[0]
 	}
 
-	if s.backend == BackendJJ {
-		return s.getJJDiff(diffType, context)
+	if s.getBackend(dir) == BackendJJ {
+		return s.getJJDiff(dir, diffType, context)
 	}
-	return s.getGitDiff(diffType, context)
+	return s.getGitDiff(dir, diffType, context)
 }
 
-func (s *Service) getGitDiff(diffType DiffType, context int) (*DiffResult, error) {
+func (s *Service) getGitDiff(dir string, diffType DiffType, context int) (*DiffResult, error) {
 	var args []string
 
 	if s.diffTarget != "" {
@@ -81,7 +88,7 @@ func (s *Service) getGitDiff(diffType DiffType, context int) (*DiffResult, error
 		args = append(args, fmt.Sprintf("-U%d", context))
 	}
 
-	output, err := s.runGitCommand(args...)
+	output, err := s.runGitCommand(dir, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get diff: %w", err)
 	}
@@ -93,10 +100,10 @@ func (s *Service) getGitDiff(diffType DiffType, context int) (*DiffResult, error
 
 	// Get untracked files and add them to the diff
 	if diffType == DiffTypeUnstaged || diffType == DiffTypeAll {
-		untrackedFiles, err := s.getUntrackedFiles()
+		untrackedFiles, err := s.getUntrackedFiles(dir)
 		if err == nil && len(untrackedFiles) > 0 {
-			for _, filepath := range untrackedFiles {
-				fileDiff, err := s.getUntrackedFileDiff(filepath, context)
+			for _, fp := range untrackedFiles {
+				fileDiff, err := s.getUntrackedFileDiff(dir, fp, context)
 				if err == nil && fileDiff != nil {
 					files = append(files, *fileDiff)
 				}
@@ -110,7 +117,7 @@ func (s *Service) getGitDiff(diffType DiffType, context int) (*DiffResult, error
 	}, nil
 }
 
-func (s *Service) getJJDiff(diffType DiffType, context int) (*DiffResult, error) {
+func (s *Service) getJJDiff(dir string, diffType DiffType, context int) (*DiffResult, error) {
 	args := []string{"diff", "--git"}
 
 	if s.diffTarget != "" {
@@ -121,7 +128,7 @@ func (s *Service) getJJDiff(diffType DiffType, context int) (*DiffResult, error)
 		args = append(args, fmt.Sprintf("--context=%d", context))
 	}
 
-	output, err := s.runJJCommand(args...)
+	output, err := s.runJJCommand(dir, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get jj diff: %w", err)
 	}
@@ -131,22 +138,21 @@ func (s *Service) getJJDiff(diffType DiffType, context int) (*DiffResult, error)
 		return nil, fmt.Errorf("failed to parse diff: %w", err)
 	}
 
-	// jj diff already includes new files, no separate untracked handling needed
 	return &DiffResult{
 		Files: files,
 		Type:  diffType,
 	}, nil
 }
 
-func (s *Service) GetStatus() ([]string, error) {
-	if s.backend == BackendJJ {
-		return s.getJJStatus()
+func (s *Service) GetStatus(dir string) ([]string, error) {
+	if s.getBackend(dir) == BackendJJ {
+		return s.getJJStatus(dir)
 	}
-	return s.getGitStatus()
+	return s.getGitStatus(dir)
 }
 
-func (s *Service) getGitStatus() ([]string, error) {
-	output, err := s.runGitCommand("status", "--porcelain")
+func (s *Service) getGitStatus(dir string) ([]string, error) {
+	output, err := s.runGitCommand(dir, "status", "--porcelain")
 	if err != nil {
 		return nil, err
 	}
@@ -162,8 +168,8 @@ func (s *Service) getGitStatus() ([]string, error) {
 	return files, nil
 }
 
-func (s *Service) getJJStatus() ([]string, error) {
-	output, err := s.runJJCommand("status")
+func (s *Service) getJJStatus(dir string) ([]string, error) {
+	output, err := s.runJJCommand(dir, "status")
 	if err != nil {
 		return nil, err
 	}
@@ -172,8 +178,6 @@ func (s *Service) getJJStatus() ([]string, error) {
 	var files []string
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
-		// jj status lines look like: "M file.txt", "A file.txt", "D file.txt"
-		// Skip header lines like "Working copy changes:" and "Working copy :"
 		if len(line) > 2 && (line[0] == 'M' || line[0] == 'A' || line[0] == 'D' || line[0] == 'R' || line[0] == 'C') && line[1] == ' ' {
 			files = append(files, line[2:])
 		}
@@ -182,10 +186,10 @@ func (s *Service) getJJStatus() ([]string, error) {
 	return files, nil
 }
 
-func (s *Service) runGitCommand(args ...string) (string, error) {
+func (s *Service) runGitCommand(dir string, args ...string) (string, error) {
 	var cmdArgs []string
-	if s.workingDir != "" {
-		cmdArgs = append([]string{"-C", s.workingDir}, args...)
+	if dir != "" {
+		cmdArgs = append([]string{"-C", dir}, args...)
 	} else {
 		cmdArgs = args
 	}
@@ -204,10 +208,10 @@ func (s *Service) runGitCommand(args ...string) (string, error) {
 	return out.String(), nil
 }
 
-func (s *Service) runJJCommand(args ...string) (string, error) {
+func (s *Service) runJJCommand(dir string, args ...string) (string, error) {
 	var cmdArgs []string
-	if s.workingDir != "" {
-		cmdArgs = append([]string{"-R", s.workingDir}, args...)
+	if dir != "" {
+		cmdArgs = append([]string{"-R", dir}, args...)
 	} else {
 		cmdArgs = args
 	}
@@ -238,20 +242,20 @@ func (s *Service) parseDiff(diffOutput string) ([]FileDiff, error) {
 	return parser.parse()
 }
 
-func (s *Service) GetFileContent(filePath string) (string, error) {
-	if s.backend == BackendJJ {
-		return s.getJJFileContent(filePath)
+func (s *Service) GetFileContent(dir string, filePath string) (string, error) {
+	if s.getBackend(dir) == BackendJJ {
+		return s.getJJFileContent(dir, filePath)
 	}
-	return s.getGitFileContent(filePath)
+	return s.getGitFileContent(dir, filePath)
 }
 
-func (s *Service) getGitFileContent(filePath string) (string, error) {
-	content, err := s.runGitCommand("show", fmt.Sprintf("HEAD:%s", filePath))
+func (s *Service) getGitFileContent(dir string, filePath string) (string, error) {
+	content, err := s.runGitCommand(dir, "show", fmt.Sprintf("HEAD:%s", filePath))
 	if err != nil {
 		// If not in HEAD, try to read from filesystem
 		fullPath := filePath
-		if s.workingDir != "" {
-			fullPath = s.workingDir + "/" + filePath
+		if dir != "" {
+			fullPath = dir + "/" + filePath
 		}
 		content, err := os.ReadFile(fullPath)
 		if err != nil {
@@ -262,14 +266,14 @@ func (s *Service) getGitFileContent(filePath string) (string, error) {
 	return content, nil
 }
 
-func (s *Service) getJJFileContent(filePath string) (string, error) {
+func (s *Service) getJJFileContent(dir string, filePath string) (string, error) {
 	// Show file at parent of working copy
-	content, err := s.runJJCommand("file", "show", "-r", "@-", filePath)
+	content, err := s.runJJCommand(dir, "file", "show", "-r", "@-", filePath)
 	if err != nil {
 		// If not in parent, try reading from filesystem
 		fullPath := filePath
-		if s.workingDir != "" {
-			fullPath = s.workingDir + "/" + filePath
+		if dir != "" {
+			fullPath = dir + "/" + filePath
 		}
 		content, err := os.ReadFile(fullPath)
 		if err != nil {
@@ -281,26 +285,26 @@ func (s *Service) getJJFileContent(filePath string) (string, error) {
 }
 
 // GetFileDiff retrieves diff for a specific file with optional context lines
-func (s *Service) GetFileDiff(filename string, diffType DiffType, contextLines ...int) (*FileDiff, error) {
+func (s *Service) GetFileDiff(dir string, filename string, diffType DiffType, contextLines ...int) (*FileDiff, error) {
 	context := 3
 	if len(contextLines) > 0 {
 		context = contextLines[0]
 	}
 
-	if s.backend == BackendGit {
+	if s.getBackend(dir) == BackendGit {
 		// Check if it's an untracked file (git only)
-		untrackedFiles, err := s.getUntrackedFiles()
+		untrackedFiles, err := s.getUntrackedFiles(dir)
 		if err == nil {
 			for _, untracked := range untrackedFiles {
 				if untracked == filename {
-					return s.getUntrackedFileDiff(filename, context)
+					return s.getUntrackedFileDiff(dir, filename, context)
 				}
 			}
 		}
 	}
 
 	// Get from regular diff
-	diff, err := s.GetDiff(diffType, contextLines...)
+	diff, err := s.GetDiff(dir, diffType, contextLines...)
 	if err != nil {
 		return nil, err
 	}
@@ -315,13 +319,13 @@ func (s *Service) GetFileDiff(filename string, diffType DiffType, contextLines .
 }
 
 // GetFileDiffWithFullContext is a convenience method for getting full file context
-func (s *Service) GetFileDiffWithFullContext(filename string, diffType DiffType) (*FileDiff, error) {
-	return s.GetFileDiff(filename, diffType, 999999)
+func (s *Service) GetFileDiffWithFullContext(dir string, filename string, diffType DiffType) (*FileDiff, error) {
+	return s.GetFileDiff(dir, filename, diffType, 999999)
 }
 
 // GetRevisionFileDiffWithFullContext returns a file diff with full context for a specific revision
-func (s *Service) GetRevisionFileDiffWithFullContext(filename string, revisionID string) (*FileDiff, error) {
-	diff, err := s.GetRevisionDiff(revisionID, 999999)
+func (s *Service) GetRevisionFileDiffWithFullContext(dir string, filename string, revisionID string) (*FileDiff, error) {
+	diff, err := s.GetRevisionDiff(dir, revisionID, 999999)
 	if err != nil {
 		return nil, err
 	}
@@ -334,8 +338,8 @@ func (s *Service) GetRevisionFileDiffWithFullContext(filename string, revisionID
 }
 
 // getUntrackedFiles returns list of untracked files from git status
-func (s *Service) getUntrackedFiles() ([]string, error) {
-	output, err := s.runGitCommand("ls-files", "--others", "--exclude-standard")
+func (s *Service) getUntrackedFiles(dir string) ([]string, error) {
+	output, err := s.runGitCommand(dir, "ls-files", "--others", "--exclude-standard")
 	if err != nil {
 		return nil, err
 	}
@@ -356,14 +360,14 @@ func (s *Service) getUntrackedFiles() ([]string, error) {
 }
 
 // getUntrackedFileDiff creates a diff for an untracked file
-func (s *Service) getUntrackedFileDiff(filepath string, contextLines int) (*FileDiff, error) {
-	fullPath := filepath
-	if s.workingDir != "" {
-		fullPath = s.workingDir + "/" + filepath
+func (s *Service) getUntrackedFileDiff(dir string, filePath string, contextLines int) (*FileDiff, error) {
+	fullPath := filePath
+	if dir != "" {
+		fullPath = dir + "/" + filePath
 	}
 	content, err := os.ReadFile(fullPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read untracked file %s: %w", filepath, err)
+		return nil, fmt.Errorf("failed to read untracked file %s: %w", filePath, err)
 	}
 
 	lines := strings.Split(string(content), "\n")
@@ -379,7 +383,7 @@ func (s *Service) getUntrackedFileDiff(filepath string, contextLines int) (*File
 	}
 
 	return &FileDiff{
-		Path:      filepath,
+		Path:      filePath,
 		Status:    FileStatusAdded,
 		Additions: len(lines),
 		Deletions: 0,
@@ -398,21 +402,19 @@ func (s *Service) getUntrackedFileDiff(filepath string, contextLines int) (*File
 }
 
 // GetRevisions returns recent revisions/commits
-func (s *Service) GetRevisions(limit int) ([]Revision, error) {
+func (s *Service) GetRevisions(dir string, limit int) ([]Revision, error) {
 	if limit <= 0 {
 		limit = 50
 	}
-	if s.backend == BackendJJ {
-		return s.getJJRevisions(limit)
+	if s.getBackend(dir) == BackendJJ {
+		return s.getJJRevisions(dir, limit)
 	}
-	return s.getGitRevisions(limit)
+	return s.getGitRevisions(dir, limit)
 }
 
-func (s *Service) getGitRevisions(limit int) ([]Revision, error) {
-	// Use US (0x1F) as a field separator instead of NUL: Go's exec refuses
-	// to pass arguments containing NUL bytes through execve, so a NUL-
-	// separated --format= string fails with "invalid argument".
-	output, err := s.runGitCommand("log", "--format=format:%H\x1f%h\x1f%s\x1f%an\x1f%aI\x1f%D", fmt.Sprintf("-n%d", limit))
+func (s *Service) getGitRevisions(dir string, limit int) ([]Revision, error) {
+	// Use US (0x1F) as a field separator instead of NUL
+	output, err := s.runGitCommand(dir, "log", "--format=format:%H\x1f%h\x1f%s\x1f%an\x1f%aI\x1f%D", fmt.Sprintf("-n%d", limit))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get git log: %w", err)
 	}
@@ -445,7 +447,6 @@ func (s *Service) getGitRevisions(limit int) ([]Revision, error) {
 }
 
 // parseGitDecorations extracts branch/tag names from git %D decoration string.
-// Input looks like: "HEAD -> main, origin/main, tag: v1.0"
 func parseGitDecorations(decorate string) []string {
 	var refs []string
 	for _, part := range strings.Split(decorate, ",") {
@@ -453,20 +454,18 @@ func parseGitDecorations(decorate string) []string {
 		if part == "" || part == "HEAD" {
 			continue
 		}
-		// "HEAD -> branchname" — extract just the branch name
 		if strings.HasPrefix(part, "HEAD -> ") {
 			refs = append(refs, strings.TrimPrefix(part, "HEAD -> "))
 			continue
 		}
-		// "tag: v1.0" — keep as-is
 		refs = append(refs, part)
 	}
 	return refs
 }
 
-func (s *Service) getJJRevisions(limit int) ([]Revision, error) {
+func (s *Service) getJJRevisions(dir string, limit int) ([]Revision, error) {
 	template := `change_id ++ "\x00" ++ change_id.shortest(8) ++ "\x00" ++ description.first_line() ++ "\x00" ++ author.name() ++ "\x00" ++ author.timestamp() ++ "\x00" ++ bookmarks.join("|") ++ "\n"`
-	output, err := s.runJJCommand("log", "--no-graph", "-r", fmt.Sprintf("ancestors(@, %d)", limit), "-T", template)
+	output, err := s.runJJCommand(dir, "log", "--no-graph", "-r", fmt.Sprintf("ancestors(@, %d)", limit), "-T", template)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get jj log: %w", err)
 	}
@@ -506,8 +505,7 @@ func (s *Service) getJJRevisions(limit int) ([]Revision, error) {
 	return revisions, nil
 }
 
-// parseJJBookmarks splits a "|"-separated bookmark string and strips the "*" suffix
-// that jj appends to tracking bookmarks (e.g. "main*" → "main").
+// parseJJBookmarks splits a "|"-separated bookmark string and strips the "*" suffix.
 func parseJJBookmarks(raw string) []string {
 	var out []string
 	for _, b := range strings.Split(raw, "|") {
@@ -521,29 +519,29 @@ func parseJJBookmarks(raw string) []string {
 }
 
 // GetRevisionDiff returns the diff for a specific revision
-func (s *Service) GetRevisionDiff(revisionID string, contextLines ...int) (*DiffResult, error) {
+func (s *Service) GetRevisionDiff(dir string, revisionID string, contextLines ...int) (*DiffResult, error) {
 	context := 3
 	if len(contextLines) > 0 {
 		context = contextLines[0]
 	}
 
-	if s.backend == BackendJJ {
-		return s.getJJRevisionDiff(revisionID, context)
+	if s.getBackend(dir) == BackendJJ {
+		return s.getJJRevisionDiff(dir, revisionID, context)
 	}
-	return s.getGitRevisionDiff(revisionID, context)
+	return s.getGitRevisionDiff(dir, revisionID, context)
 }
 
-func (s *Service) getGitRevisionDiff(revisionID string, context int) (*DiffResult, error) {
+func (s *Service) getGitRevisionDiff(dir string, revisionID string, context int) (*DiffResult, error) {
 	args := []string{"diff", revisionID + "~1", revisionID, "--no-color", "--no-ext-diff"}
 	if context >= 0 {
 		args = append(args, fmt.Sprintf("-U%d", context))
 	}
 
-	output, err := s.runGitCommand(args...)
+	output, err := s.runGitCommand(dir, args...)
 	if err != nil {
 		// Fallback for initial commit (no parent)
 		args = []string{"diff", "--no-color", "--no-ext-diff", fmt.Sprintf("-U%d", context), "4b825dc642cb6eb9a060e54bf899d69f82cf7256", revisionID}
-		output, err = s.runGitCommand(args...)
+		output, err = s.runGitCommand(dir, args...)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get revision diff: %w", err)
 		}
@@ -560,13 +558,13 @@ func (s *Service) getGitRevisionDiff(revisionID string, context int) (*DiffResul
 	}, nil
 }
 
-func (s *Service) getJJRevisionDiff(revisionID string, context int) (*DiffResult, error) {
+func (s *Service) getJJRevisionDiff(dir string, revisionID string, context int) (*DiffResult, error) {
 	args := []string{"diff", "--git", "-r", revisionID}
 	if context >= 0 {
 		args = append(args, fmt.Sprintf("--context=%d", context))
 	}
 
-	output, err := s.runJJCommand(args...)
+	output, err := s.runJJCommand(dir, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get jj revision diff: %w", err)
 	}
@@ -580,28 +578,6 @@ func (s *Service) getJJRevisionDiff(revisionID string, context int) (*DiffResult
 		Files: files,
 		Type:  DiffTypeAll,
 	}, nil
-}
-
-// SetWorkingDir changes the working directory for VCS commands
-func (s *Service) SetWorkingDir(dir string) error {
-	if err := s.ValidateRepo(dir); err != nil {
-		return err
-	}
-	s.workingDir = dir
-	s.backend = s.DetectBackend()
-	s.diffTarget = "" // Reset diff target — old target likely doesn't exist in new repo
-	return nil
-}
-
-// GetWorkingDir returns the current working directory
-func (s *Service) GetWorkingDir() string {
-	if s.workingDir != "" {
-		return s.workingDir
-	}
-	if cwd, err := os.Getwd(); err == nil {
-		return cwd
-	}
-	return ""
 }
 
 // ValidateRepo checks if the directory is a valid git or jj repository
@@ -624,31 +600,20 @@ func (s *Service) ValidateRepo(dir string) error {
 }
 
 // ValidateGitRepo checks if the directory is a valid repository (git or jj)
-// Kept for backward compatibility
 func (s *Service) ValidateGitRepo(dir string) error {
 	return s.ValidateRepo(dir)
 }
 
-// SetBackend explicitly sets the VCS backend
-func (s *Service) SetBackend(backend VCSBackend) {
-	s.backend = backend
-}
-
 // FileDiffText returns the raw unified-diff text for a single file at the
-// requested unchanged-context width. An empty revision selects the
-// working-copy diff (HEAD..working tree for git, parent..@ for jj).
-// Otherwise the diff is for that revision against its parent.
-//
-// Used by the MCP hunk provider to inline `git diff -U25` output alongside
-// each comment.
-func (s *Service) FileDiffText(file, revision string, contextLines int) (string, error) {
-	if s.backend == BackendJJ {
+// requested unchanged-context width.
+func (s *Service) FileDiffText(dir string, file, revision string, contextLines int) (string, error) {
+	if s.getBackend(dir) == BackendJJ {
 		args := []string{"diff", "--git", fmt.Sprintf("--context=%d", contextLines)}
 		if revision != "" {
 			args = append(args, "-r", revision)
 		}
 		args = append(args, file)
-		out, err := s.runJJCommand(args...)
+		out, err := s.runJJCommand(dir, args...)
 		if err != nil {
 			return "", fmt.Errorf("file diff for %s@%s: %w", file, revision, err)
 		}
@@ -660,7 +625,7 @@ func (s *Service) FileDiffText(file, revision string, contextLines int) (string,
 		args = append(args, revision+"~1", revision)
 	}
 	args = append(args, "--", file)
-	out, err := s.runGitCommand(args...)
+	out, err := s.runGitCommand(dir, args...)
 	if err != nil {
 		return "", fmt.Errorf("file diff for %s@%s: %w", file, revision, err)
 	}
@@ -668,20 +633,18 @@ func (s *Service) FileDiffText(file, revision string, contextLines int) (string,
 }
 
 // FileContentAtCommit returns the file's content at the given commit SHA.
-// Used for drift detection: comparing the pinned content against current
-// working copy at the comment's line range.
-func (s *Service) FileContentAtCommit(commit, file string) (string, error) {
+func (s *Service) FileContentAtCommit(dir string, commit, file string) (string, error) {
 	if commit == "" {
 		return "", fmt.Errorf("missing commit")
 	}
-	if s.backend == BackendJJ {
-		out, err := s.runJJCommand("file", "show", "-r", commit, file)
+	if s.getBackend(dir) == BackendJJ {
+		out, err := s.runJJCommand(dir, "file", "show", "-r", commit, file)
 		if err != nil {
 			return "", fmt.Errorf("jj file show %s@%s: %w", file, commit, err)
 		}
 		return out, nil
 	}
-	out, err := s.runGitCommand("show", fmt.Sprintf("%s:%s", commit, file))
+	out, err := s.runGitCommand(dir, "show", fmt.Sprintf("%s:%s", commit, file))
 	if err != nil {
 		return "", fmt.Errorf("git show %s:%s: %w", commit, file, err)
 	}
@@ -689,16 +652,13 @@ func (s *Service) FileContentAtCommit(commit, file string) (string, error) {
 }
 
 // ResolveCommit returns the underlying commit SHA for a revision identifier.
-// An empty identifier resolves to the current working-copy commit (HEAD for
-// git, @ for jj). Used to pin Comment.Commit at creation time so the
-// original anchor survives subsequent edits.
-func (s *Service) ResolveCommit(revisionID string) (string, error) {
-	if s.backend == BackendJJ {
+func (s *Service) ResolveCommit(dir string, revisionID string) (string, error) {
+	if s.getBackend(dir) == BackendJJ {
 		rev := revisionID
 		if rev == "" {
 			rev = "@"
 		}
-		out, err := s.runJJCommand("log", "--no-graph", "-r", rev, "-T", "commit_id", "--limit", "1")
+		out, err := s.runJJCommand(dir, "log", "--no-graph", "-r", rev, "-T", "commit_id", "--limit", "1")
 		if err != nil {
 			return "", fmt.Errorf("resolving jj commit for %q: %w", revisionID, err)
 		}
@@ -709,22 +669,17 @@ func (s *Service) ResolveCommit(revisionID string) (string, error) {
 	if rev == "" {
 		rev = "HEAD"
 	}
-	out, err := s.runGitCommand("rev-parse", rev)
+	out, err := s.runGitCommand(dir, "rev-parse", rev)
 	if err != nil {
 		return "", fmt.Errorf("resolving git commit for %q: %w", revisionID, err)
 	}
 	return strings.TrimSpace(out), nil
 }
 
-// SetWorkingDirUnsafe sets the working directory without validation (used by watcher)
-func (s *Service) SetWorkingDirUnsafe(dir string) {
-	s.workingDir = dir
-}
-
 // StatusRaw returns raw status output for change detection (used by watcher)
-func (s *Service) StatusRaw() (string, error) {
-	if s.backend == BackendJJ {
-		return s.runJJCommand("status")
+func (s *Service) StatusRaw(dir string) (string, error) {
+	if s.getBackend(dir) == BackendJJ {
+		return s.runJJCommand(dir, "status")
 	}
-	return s.runGitCommand("status", "--porcelain")
+	return s.runGitCommand(dir, "status", "--porcelain")
 }

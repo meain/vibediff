@@ -93,11 +93,13 @@ func (h *WSHub) Shutdown() {
 	close(h.done)
 }
 
-// NotifyChange sends a change notification to all connected clients
-func (h *WSHub) NotifyChange(changeType string) {
+// NotifyChange sends a change notification to all connected clients.
+// dir is the project directory that changed; empty string means unscoped.
+func (h *WSHub) NotifyChange(changeType string, dir string) {
 	data := map[string]interface{}{
 		"type":      changeType,
 		"timestamp": time.Now().Unix(),
+		"directory": dir,
 	}
 
 	jsonData, err := json.Marshal(data)

@@ -42,17 +42,19 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
   })
   // Tracks the file path from the URL on first load so we can restore it once data arrives
   const initialFilePathRef = useRef<string | null>(new URLSearchParams(window.location.search).get('file'))
+  // Directory from URL (used once on mount to override registry default)
+  const initialDirFromUrlRef = useRef<string | null>(new URLSearchParams(window.location.search).get('dir'))
 
-  const { data, loading, error, refetch } = useDiff(diffType, selectedRevision)
+  const { currentDirectory, backend, directories, setCurrentDirectory, registerDirectory, removeDirectory, validateDirectory } = useDirectory()
+  const { data, loading, error, refetch } = useDiff(currentDirectory, diffType, selectedRevision)
   const [copyFeedback, setCopyFeedback] = useState(false)
   const [copyAllFeedback, setCopyAllFeedback] = useState(false)
   const [showComments, setShowComments] = useState(true)
-  const { lastUpdate } = useWebSocketUpdates()
-  const { currentDirectory, backend, changeDirectory, validateDirectory } = useDirectory()
+  const { lastUpdate, lastUpdateDir } = useWebSocketUpdates()
   const { comments, addComment, updateComment, deleteComment, resolveComment, reopenComment, getCommentsForLine, getCommentRangeLines, formatCommentsForExport, formatPendingCommentsForExport, clearComments } = useComments(currentDirectory, selectedRevision)
   const { reviewedFiles, toggleReviewed, clearReviewed, validateReviewed } = useReviewedFiles(currentDirectory, selectedRevision)
   const { reviewedRevisions, markRevisionReviewed, unmarkRevisionReviewed } = useReviewedRevisions(currentDirectory)
-  const { revisions, loading: revisionsLoading, refetch: refetchRevisions } = useRevisions()
+  const { revisions, loading: revisionsLoading, refetch: refetchRevisions } = useRevisions(currentDirectory)
 
   const getCommentsForLineGated = useCallback(
     (file: string, line: number) => showComments ? getCommentsForLine(file, line) : [],
@@ -63,14 +65,16 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
     [showComments, getCommentRangeLines]
   )
 
-  // Refetch when WebSocket triggers an update
+  // Refetch when WebSocket triggers an update, but only if it's for the current directory
+  // (or if the update has no directory, which means broadcast-all).
   useEffect(() => {
+    if (lastUpdateDir && currentDirectory && lastUpdateDir !== currentDirectory) return
     setIsRefreshing(true)
     refetch()
     refetchRevisions()
     const timer = setTimeout(() => { setIsRefreshing(false); }, 500)
     return () => { clearTimeout(timer); }
-  }, [lastUpdate, refetch, refetchRevisions])
+  }, [lastUpdate, lastUpdateDir, currentDirectory, refetch, refetchRevisions])
 
   // When revisions reload, check if the selected revision still exists.
   // If a commit was squashed/abandoned the change_id disappears from the
@@ -108,15 +112,25 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
 
   }, []) // viewMode, displayMode, diffType, wrapLines are initialized lazily from localStorage above
 
-  // Sync selected revision and file to URL params
+  // Restore directory from URL on first load (once directories are available)
+  useEffect(() => {
+    const urlDir = initialDirFromUrlRef.current
+    if (urlDir && directories.includes(urlDir) && currentDirectory !== urlDir) {
+      setCurrentDirectory(urlDir)
+      initialDirFromUrlRef.current = null
+    }
+  }, [directories, currentDirectory, setCurrentDirectory])
+
+  // Sync directory, revision, and file to URL params
   useEffect(() => {
     const params = new URLSearchParams()
+    if (currentDirectory) params.set('dir', currentDirectory)
     if (selectedRevision) params.set('rev', selectedRevision)
     if (selectedFile) params.set('file', selectedFile.path)
     const search = params.toString()
     const newUrl = search ? `${window.location.pathname}?${search}` : window.location.pathname
     window.history.replaceState(null, '', newUrl)
-  }, [selectedRevision, selectedFile])
+  }, [currentDirectory, selectedRevision, selectedFile])
 
   // Save preferences using the custom hook
   useLocalStorage('viewMode', viewMode)
@@ -245,11 +259,15 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
     : { additions: 0, deletions: 0 }
 
   const handleDirectoryChange = async (dir: string): Promise<void> => {
-    await changeDirectory(dir)
+    if (!directories.includes(dir)) {
+      // Not yet registered — validate + add to registry, which also sets currentDirectory.
+      await registerDirectory(dir)
+    } else {
+      setCurrentDirectory(dir)
+    }
     setSelectedRevision(null)
     setSelectedFile(null)
-    refetch()
-    refetchRevisions()
+    // useDiff and useRevisions will re-fetch automatically when currentDirectory changes.
   }
 
   // Only show the full-screen loading spinner on the very first load (no
@@ -277,7 +295,14 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
               </span>
               <DirectorySwitcher
                 currentDirectory={currentDirectory}
-                onDirectoryChange={handleDirectoryChange}
+                directories={directories}
+                onSelectDirectory={(dir) => {
+                  setCurrentDirectory(dir)
+                  setSelectedRevision(null)
+                  setSelectedFile(null)
+                }}
+                onAddDirectory={handleDirectoryChange}
+                onRemoveDirectory={removeDirectory}
                 onValidate={validateDirectory}
               />
               {isRefreshing && (
@@ -626,6 +651,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
       <FullFileModal
         isOpen={!!fullFileModal}
         filePath={fullFileModal ?? ''}
+        directory={currentDirectory}
         onClose={() => { setFullFileModal(null); }}
         viewMode={viewMode}
         getCommentsForLine={getCommentsForLineGated}

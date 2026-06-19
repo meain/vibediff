@@ -27,8 +27,11 @@ const (
 // a specific revision. Revision/Commit pin the point-in-time the user was
 // looking at when the comment was created so consumers can render the
 // original code even after the working copy drifts.
+// Directory scopes the comment to a specific project directory, enabling
+// multi-project support without separate server state.
 type Comment struct {
 	ID        string    `json:"id"`
+	Directory string    `json:"directory,omitempty"`
 	File      string    `json:"file"`
 	Line      int       `json:"line,omitempty"`
 	LineEnd   int       `json:"lineEnd,omitempty"`
@@ -68,6 +71,9 @@ type Store struct {
 	// silently fall back to "no cursor" after every delete and re-
 	// deliver the entire backlog on the next wait_for_comment call.
 	tombstones map[string]time.Time
+	// loadedDirs tracks which project directories have been loaded from
+	// disk, enabling lazy per-directory loading without double-loading.
+	loadedDirs map[string]bool
 
 	subsMu    sync.RWMutex
 	subs      []subscription
@@ -78,6 +84,7 @@ func NewStore() *Store {
 	return &Store{
 		comments:   make(map[string]*Comment),
 		tombstones: make(map[string]time.Time),
+		loadedDirs: make(map[string]bool),
 	}
 }
 
@@ -324,6 +331,43 @@ func (s *Store) DeleteComment(id string) bool {
 		go sub.fn(nil)
 	}
 	return true
+}
+
+// GetCommentsForDir returns all comments for a specific directory, loading
+// from disk on first access (lazy load).
+func (s *Store) GetCommentsForDir(dir string) []*Comment {
+	s.ensureLoaded(dir)
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var out []*Comment
+	for _, c := range s.comments {
+		if c.Directory == dir {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+// ClearForDir removes all in-memory comments for the given directory.
+func (s *Store) ClearForDir(dir string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for id, c := range s.comments {
+		if c.Directory == dir {
+			delete(s.comments, id)
+		}
+	}
+}
+
+// ensureLoaded lazily loads comments from disk for the given directory if
+// not yet loaded into memory.
+func (s *Store) ensureLoaded(dir string) {
+	s.mu.RLock()
+	loaded := s.loadedDirs[dir]
+	s.mu.RUnlock()
+	if !loaded {
+		_ = s.LoadComments(dir)
+	}
 }
 
 // Clear removes all comments from the store

@@ -8,18 +8,20 @@ interface UseDiffReturn {
   refetch: () => void
 }
 
-export function useDiff(type: DiffType = 'all', revision?: string | null): UseDiffReturn {
+export function useDiff(directory: string, type: DiffType = 'all', revision?: string | null): UseDiffReturn {
   const [data, setData] = useState<DiffResult | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   // Shared fetch logic with optional loading state
   const fetchDiff = useCallback(async (showLoading = true): Promise<void> => {
+    if (!directory) return
     try {
       if (showLoading) {
         setLoading(true)
       }
       const params = new URLSearchParams()
+      params.set('directory', directory)
       if (revision) {
         params.set('revision', revision)
       } else {
@@ -39,7 +41,7 @@ export function useDiff(type: DiffType = 'all', revision?: string | null): UseDi
         setLoading(false)
       }
     }
-  }, [type, revision])
+  }, [directory, type, revision])
 
   // Initial fetch
   useEffect(() => {

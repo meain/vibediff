@@ -20,6 +20,7 @@ import (
 	"github.com/malvex/vibediff/internal/git"
 	"github.com/malvex/vibediff/internal/handlers"
 	"github.com/malvex/vibediff/internal/mcp"
+	"github.com/malvex/vibediff/internal/registry"
 	"github.com/malvex/vibediff/internal/review"
 	"github.com/malvex/vibediff/internal/watcher"
 )
@@ -91,16 +92,21 @@ func main() {
 	gitService := git.NewService()
 	gitService.SetDiffTarget(target)
 
-	// Detect VCS backend (jj or git)
-	backend := gitService.DetectBackend()
-	gitService.SetBackend(backend)
+	// Load the known-directories registry (persisted across runs).
+	reg := registry.New()
 
-	// Load persisted comments for the initial working directory (best-effort).
-	if wd := gitService.GetWorkingDir(); wd != "" {
-		_ = reviewStore.LoadComments(wd)
-	}
-	if backend == git.BackendJJ {
-		fmt.Fprintln(os.Stderr, "Detected jj repository")
+	// Auto-register the startup (current working) directory if it is a valid
+	// VCS repo. This ensures fresh installs work out of the box without
+	// requiring the user to manually add a directory.
+	if startupDir, err := os.Getwd(); err == nil {
+		if valErr := gitService.ValidateRepo(startupDir); valErr == nil {
+			reg.Add(startupDir)
+			_ = reviewStore.LoadComments(startupDir)
+			backend := gitService.GetBackend(startupDir)
+			if backend == git.BackendJJ {
+				fmt.Fprintln(os.Stderr, "Detected jj repository")
+			}
+		}
 	}
 
 	// Create WebSocket hub
@@ -108,18 +114,20 @@ func main() {
 	go wsHub.Run()
 
 	// Notify the UI whenever a comment is added — covers agent replies
-	// posted through the MCP reply_to_comment tool, which otherwise
-	// leave the comment list stale until a manual refresh. Subscription
-	// is process-lifetime so the returned unsubscribe func is discarded.
-	_ = reviewStore.Subscribe(func(_ *review.Comment) {
-		wsHub.NotifyChange("comment_changed")
+	// posted through the MCP reply_to_comment tool.
+	_ = reviewStore.Subscribe(func(c *review.Comment) {
+		dir := ""
+		if c != nil {
+			dir = c.Directory
+		}
+		wsHub.NotifyChange("comment_changed", dir)
 	})
 
-	// Start file watcher
-	gitWatcher := watcher.NewGitWatcher(wsHub, backend)
+	// Start multi-directory file watcher
+	gitWatcher := watcher.NewGitWatcher(wsHub, gitService, reg)
 	gitWatcher.Start()
 
-	handler := handlers.NewHandler(gitService, reviewStore, gitWatcher)
+	handler := handlers.NewHandler(gitService, reviewStore, reg)
 
 	r := mux.NewRouter()
 
@@ -138,18 +146,22 @@ func main() {
 	r.HandleFunc("/api/review/comment/{id}/resolve", handler.ResolveComment).Methods("POST")
 	r.HandleFunc("/api/review/comment/{id}/reopen", handler.ReopenComment).Methods("POST")
 
-	// Directory management endpoints
 	r.HandleFunc("/docs", handler.ServeDocsPage).Methods("GET")
 
-	r.HandleFunc("/api/directory", handler.GetDirectory).Methods("GET")
-	r.HandleFunc("/api/directory", handler.SetDirectory).Methods("POST")
-	r.HandleFunc("/api/directory/validate", handler.ValidateDirectory).Methods("POST")
+	// Directory/registry endpoints.
+	// NOTE: /api/directories/validate must be registered before the
+	// wildcard /api/directories/{path:.+} so gorilla/mux picks the
+	// more specific route first.
+	r.HandleFunc("/api/directory", handler.GetDirectoryInfo).Methods("GET")
+	r.HandleFunc("/api/directories", handler.ListDirectories).Methods("GET")
+	r.HandleFunc("/api/directories", handler.RegisterDirectory).Methods("POST")
+	r.HandleFunc("/api/directories/validate", handler.ValidateDirectory).Methods("POST")
+	r.HandleFunc("/api/directories/{path:.+}", handler.RemoveDirectory).Methods("DELETE")
 
 	// WebSocket endpoint for live updates
 	r.HandleFunc("/api/ws", handler.HandleWebSocket(wsHub)).Methods("GET")
 
-	// Embedded MCP server. Mounted on the same listener at /mcp; clients
-	// configure their .mcp.json with type "http" and url http://<host>/mcp.
+	// Embedded MCP server.
 	mcpServer := mcp.New(reviewStore, gitService, mcp.NewGitHunkProvider(gitService))
 	r.PathPrefix("/mcp").Handler(mcpServer.Handler())
 
@@ -173,7 +185,6 @@ func main() {
 
 	// Catch-all route for React app (must be last)
 	r.PathPrefix("/").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Serve index.html for all non-API routes (React routing)
 		var indexHTML []byte
 		var err error
 		if *dev {
@@ -196,11 +207,8 @@ func main() {
 		Addr:        addr,
 		Handler:     r,
 		ReadTimeout: 15 * time.Second,
-		// WriteTimeout is intentionally unset. The MCP wait_for_comment
-		// tool is a server-side long-poll that may legitimately hold a
-		// response open for up to 10 minutes; a global write deadline
-		// would cut those requests short. All routes serve localhost
-		// traffic, so the slow-client write-stall risk is negligible.
+		// WriteTimeout is intentionally unset — MCP long-polls can hold
+		// connections open for up to 10 minutes.
 	}
 
 	// Determine if we should open the browser
@@ -214,9 +222,7 @@ func main() {
 	go func() {
 		fmt.Fprintf(os.Stderr, "Starting VibeDiff server on http://%s\n", addr)
 
-		// Open browser if enabled
 		if shouldOpen {
-			// Give the server a moment to start
 			time.Sleep(100 * time.Millisecond)
 			url := fmt.Sprintf("http://%s", addr)
 			if err := openBrowser(url); err != nil {
@@ -237,18 +243,14 @@ func main() {
 
 	fmt.Fprintln(os.Stderr, "\nShutting down server...")
 
-	// First stop accepting new connections and file watching
 	gitWatcher.Stop()
 	wsHub.Shutdown()
 
-	// Give WebSocket connections time to close gracefully
 	time.Sleep(100 * time.Millisecond)
 
-	// Create shutdown context with reasonable timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Shutdown HTTP server
 	if err := srv.Shutdown(ctx); err != nil {
 		log.Printf("Server shutdown error: %v", err)
 	}
