@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { Revision, VCSBackend } from '../types/diff'
 import CopyButton from './CopyButton'
 import { formatRelativeTime } from '../utils/time'
@@ -19,6 +20,17 @@ export default function RevisionList({
   backend,
   reviewedRevisions,
 }: RevisionListProps): React.ReactElement {
+  const [filter, setFilter] = useState('')
+
+  const query = filter.trim().toLowerCase()
+  const filteredRevisions = query
+    ? revisions.filter(rev =>
+        rev.id.toLowerCase().includes(query) ||
+        rev.shortId.toLowerCase().includes(query) ||
+        rev.description.toLowerCase().includes(query)
+      )
+    : revisions
+
   if (loading) {
     return (
       <div className="text-xs text-fg-subtle p-2">
@@ -29,8 +41,19 @@ export default function RevisionList({
 
   return (
     <div className="overflow-y-auto">
+      {/* Filter input */}
+      <div className="px-2 py-1.5 border-b border-edge">
+        <input
+          type="text"
+          value={filter}
+          onChange={(e) => { setFilter(e.target.value); }}
+          placeholder="Filter by ID or message…"
+          className="w-full px-2 py-1 text-xs bg-surface border border-edge rounded text-fg placeholder:text-fg-subtle focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+        />
+      </div>
+
       {/* Working copy option — only for git, since in jj the first revision IS the working copy */}
-      {backend === 'git' && (
+      {backend === 'git' && !query && (
         <div
           role="button"
           tabIndex={0}
@@ -51,7 +74,11 @@ export default function RevisionList({
         </div>
       )}
 
-      {revisions.map((rev) => {
+      {filteredRevisions.length === 0 && query && (
+        <div className="px-2 py-3 text-xs text-fg-subtle text-center">No revisions match</div>
+      )}
+
+      {filteredRevisions.map((rev) => {
         const isSelected = rev.isWorkingCopy && backend === 'jj'
           ? selectedRevision === null
           : selectedRevision === rev.id
