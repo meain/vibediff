@@ -114,6 +114,7 @@ interface FileDiffProps {
   wrapLines?: boolean
   diffType?: DiffType
   selectedRevision?: string | null
+  directory?: string
   isReviewed?: boolean
   onToggleReviewed?: () => void
   commentCount?: number
@@ -141,6 +142,8 @@ export default function FileDiff({
   wrapLines = false,
   diffType = 'all',
   selectedRevision = null,
+  directory = '',
+
   isReviewed = false,
   onToggleReviewed,
   commentCount = 0,
@@ -235,6 +238,7 @@ export default function FileDiff({
     setIsLoadingFull(true)
     try {
       const params = new URLSearchParams()
+      if (directory) params.set('directory', directory)
       if (selectedRevision) {
         params.set('revision', selectedRevision)
       } else {
@@ -251,7 +255,7 @@ export default function FileDiff({
     } finally {
       setIsLoadingFull(false)
     }
-  }, [isLoadingFull, fullDiff, selectedRevision, diffType, file.path])
+  }, [isLoadingFull, fullDiff, selectedRevision, diffType, file.path, directory])
 
   const applyExpansion = useCallback((gapKey: string, direction: 'up' | 'down') => {
     setGapExpansions(prev => {

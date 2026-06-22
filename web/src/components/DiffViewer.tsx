@@ -580,6 +580,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
                 wrapLines={wrapLines}
                 diffType={diffType}
                 selectedRevision={selectedRevision}
+                directory={currentDirectory}
                 isReviewed={reviewedFiles.has(file.path)}
                 onToggleReviewed={() => { handleToggleReviewed(file); }}
                 commentCount={showComments ? comments.filter(c => c.file === file.path && !c.parentId).length : 0}
@@ -618,6 +619,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
               wrapLines={wrapLines}
               diffType={diffType}
               selectedRevision={selectedRevision}
+              directory={currentDirectory}
               isReviewed={reviewedFiles.has(selectedFile.path)}
               onToggleReviewed={() => { handleToggleReviewed(selectedFile); }}
               commentCount={showComments ? comments.filter(c => c.file === selectedFile.path && !c.parentId).length : 0}
