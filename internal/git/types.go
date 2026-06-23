@@ -73,4 +73,5 @@ type Revision struct {
 	Timestamp     string   `json:"timestamp"`
 	IsWorkingCopy bool     `json:"isWorkingCopy,omitempty"`
 	Bookmarks     []string `json:"bookmarks,omitempty"`
+	Parents       []string `json:"parents,omitempty"`
 }

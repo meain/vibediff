@@ -414,7 +414,7 @@ func (s *Service) GetRevisions(dir string, limit int) ([]Revision, error) {
 
 func (s *Service) getGitRevisions(dir string, limit int) ([]Revision, error) {
 	// Use US (0x1F) as a field separator instead of NUL
-	output, err := s.runGitCommand(dir, "log", "--format=format:%H\x1f%h\x1f%s\x1f%an\x1f%aI\x1f%D", fmt.Sprintf("-n%d", limit))
+	output, err := s.runGitCommand(dir, "log", "--format=format:%H\x1f%h\x1f%s\x1f%an\x1f%aI\x1f%D\x1f%P", fmt.Sprintf("-n%d", limit))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get git log: %w", err)
 	}
@@ -426,7 +426,7 @@ func (s *Service) getGitRevisions(dir string, limit int) ([]Revision, error) {
 	lines := strings.Split(strings.TrimSpace(output), "\n")
 	var revisions []Revision
 	for _, line := range lines {
-		parts := strings.SplitN(line, "\x1f", 6)
+		parts := strings.SplitN(line, "\x1f", 7)
 		if len(parts) < 5 {
 			continue
 		}
@@ -437,8 +437,11 @@ func (s *Service) getGitRevisions(dir string, limit int) ([]Revision, error) {
 			Author:      parts[3],
 			Timestamp:   parts[4],
 		}
-		if len(parts) == 6 && parts[5] != "" {
+		if len(parts) >= 6 && parts[5] != "" {
 			rev.Bookmarks = parseGitDecorations(parts[5])
+		}
+		if len(parts) >= 7 && parts[6] != "" {
+			rev.Parents = strings.Fields(parts[6])
 		}
 		revisions = append(revisions, rev)
 	}
@@ -464,7 +467,7 @@ func parseGitDecorations(decorate string) []string {
 }
 
 func (s *Service) getJJRevisions(dir string, limit int) ([]Revision, error) {
-	template := `change_id ++ "\x00" ++ change_id.shortest(8) ++ "\x00" ++ description.first_line() ++ "\x00" ++ author.name() ++ "\x00" ++ author.timestamp() ++ "\x00" ++ bookmarks.join("|") ++ "\n"`
+	template := `change_id ++ "\x00" ++ change_id.shortest(8) ++ "\x00" ++ description.first_line() ++ "\x00" ++ author.name() ++ "\x00" ++ author.timestamp() ++ "\x00" ++ bookmarks.join("|") ++ "\x00" ++ if(parents.len() > 0, parents.first().change_id(), "") ++ if(parents.len() > 1, "|" ++ parents.last().change_id(), "") ++ "\n"`
 	output, err := s.runJJCommand(dir, "log", "--no-graph", "-r", fmt.Sprintf("ancestors(@, %d)", limit), "-T", template)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get jj log: %w", err)
@@ -480,7 +483,7 @@ func (s *Service) getJJRevisions(dir string, limit int) ([]Revision, error) {
 		if line == "" {
 			continue
 		}
-		parts := strings.SplitN(line, "\x00", 6)
+		parts := strings.SplitN(line, "\x00", 7)
 		if len(parts) < 5 {
 			continue
 		}
@@ -491,8 +494,11 @@ func (s *Service) getJJRevisions(dir string, limit int) ([]Revision, error) {
 			Author:      parts[3],
 			Timestamp:   parts[4],
 		}
-		if len(parts) == 6 && parts[5] != "" {
+		if len(parts) >= 6 && parts[5] != "" {
 			rev.Bookmarks = parseJJBookmarks(parts[5])
+		}
+		if len(parts) >= 7 && parts[6] != "" {
+			rev.Parents = splitAndFilter(parts[6], "|")
 		}
 		revisions = append(revisions, rev)
 	}
@@ -513,6 +519,17 @@ func parseJJBookmarks(raw string) []string {
 		b = strings.TrimSuffix(b, "*")
 		if b != "" {
 			out = append(out, b)
+		}
+	}
+	return out
+}
+
+// splitAndFilter splits a string by sep and removes empty parts.
+func splitAndFilter(s, sep string) []string {
+	var out []string
+	for _, p := range strings.Split(s, sep) {
+		if p != "" {
+			out = append(out, p)
 		}
 	}
 	return out

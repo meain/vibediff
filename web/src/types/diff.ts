@@ -47,6 +47,7 @@ export interface Revision {
   timestamp: string
   isWorkingCopy?: boolean
   bookmarks?: string[]
+  parents?: string[]
 }
 
 export type CommentAuthor = 'user' | 'agent'
