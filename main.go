@@ -129,7 +129,7 @@ func main() {
 
 	handler := handlers.NewHandler(gitService, reviewStore, reg)
 
-	r := mux.NewRouter()
+	r := mux.NewRouter().UseEncodedPath()
 
 	r.HandleFunc("/api/revisions", handler.GetRevisions).Methods("GET")
 	r.HandleFunc("/api/diff", handler.GetDiff).Methods("GET")
