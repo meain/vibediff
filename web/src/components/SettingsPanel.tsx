@@ -81,8 +81,8 @@ export default function SettingsPanel({
 
           {/* Theme */}
           <button className={itemClass} onClick={() => { toggleDark(); }}>
-            <span>{isDark ? '🌙' : '🌞'}</span>
-            <span>{isDark ? 'Dark mode' : 'Light mode'}</span>
+            <span>{isDark ? '🌞' : '🌙'}</span>
+            <span>{isDark ? 'Light mode' : 'Dark mode'}</span>
           </button>
 
           <div className="my-1 border-t border-edge" />
