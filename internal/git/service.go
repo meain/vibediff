@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 )
@@ -112,7 +113,7 @@ func (s *Service) getGitDiff(dir string, diffType DiffType, context int) (*DiffR
 	}
 
 	return &DiffResult{
-		Files: files,
+		Files: s.markGeneratedFiles(dir, files),
 		Type:  diffType,
 	}, nil
 }
@@ -139,7 +140,7 @@ func (s *Service) getJJDiff(dir string, diffType DiffType, context int) (*DiffRe
 	}
 
 	return &DiffResult{
-		Files: files,
+		Files: s.markGeneratedFiles(dir, files),
 		Type:  diffType,
 	}, nil
 }
@@ -231,6 +232,147 @@ func (s *Service) runJJCommand(dir string, args ...string) (string, error) {
 	}
 
 	return out.String(), nil
+}
+
+// markGeneratedFiles tags FileDiff entries whose paths are marked
+// linguist-generated=true in .gitattributes. It tries git check-attr first
+// (works for plain git repos) and falls back to a simple manual parse of
+// .gitattributes so jj repos are also covered.
+func (s *Service) markGeneratedFiles(dir string, files []FileDiff) []FileDiff {
+	if len(files) == 0 {
+		return files
+	}
+
+	paths := make([]string, len(files))
+	for i, f := range files {
+		paths[i] = f.Path
+	}
+
+	generated := s.getGeneratedSet(dir, paths)
+	for i := range files {
+		if generated[files[i].Path] {
+			files[i].IsGenerated = true
+		}
+	}
+	return files
+}
+
+// getGeneratedSet returns which of the given paths have linguist-generated=true.
+func (s *Service) getGeneratedSet(dir string, paths []string) map[string]bool {
+	result := make(map[string]bool)
+	if len(paths) == 0 {
+		return result
+	}
+
+	// Try git check-attr first (works for git repos and jj repos with git backend).
+	args := append([]string{"check-attr", "linguist-generated", "--"}, paths...)
+	var cmdArgs []string
+	if dir != "" {
+		cmdArgs = append([]string{"-C", dir}, args...)
+	} else {
+		cmdArgs = args
+	}
+	cmd := exec.Command("git", cmdArgs...)
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = nil
+	if err := cmd.Run(); err == nil {
+		// Output: "filename: linguist-generated: set|true|unspecified"
+		for _, line := range strings.Split(out.String(), "\n") {
+			parts := strings.SplitN(line, ": ", 3)
+			if len(parts) == 3 {
+				val := strings.TrimSpace(parts[2])
+				if val == "set" || val == "true" {
+					result[parts[0]] = true
+				}
+			}
+		}
+		return result
+	}
+
+	// Fallback: parse .gitattributes manually (for jj repos without git binary access).
+	attrPath := ".gitattributes"
+	if dir != "" {
+		attrPath = filepath.Join(dir, ".gitattributes")
+	}
+	content, err := os.ReadFile(attrPath)
+	if err != nil {
+		return result
+	}
+
+	type rule struct{ pattern string }
+	var rules []rule
+	for _, line := range strings.Split(string(content), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		pattern := fields[0]
+		for _, attr := range fields[1:] {
+			if attr == "linguist-generated" || attr == "linguist-generated=true" {
+				rules = append(rules, rule{pattern: pattern})
+				break
+			}
+		}
+	}
+
+	for _, path := range paths {
+		for _, r := range rules {
+			if matchGitAttrPattern(r.pattern, path) {
+				result[path] = true
+				break
+			}
+		}
+	}
+	return result
+}
+
+// matchGitAttrPattern matches a gitattributes glob pattern against a file path.
+// It handles ** as "zero or more path components", matching gitattributes semantics.
+func matchGitAttrPattern(pattern, path string) bool {
+	if !strings.Contains(pattern, "**") {
+		// Exact path match.
+		if m, _ := filepath.Match(pattern, path); m {
+			return true
+		}
+		// Basename match for patterns without a separator.
+		if !strings.Contains(pattern, "/") {
+			if m, _ := filepath.Match(pattern, filepath.Base(path)); m {
+				return true
+			}
+		}
+		return false
+	}
+
+	// Split on the first **.
+	idx := strings.Index(pattern, "**")
+	prefix := pattern[:idx]
+	rest := strings.TrimPrefix(pattern[idx+2:], "/")
+
+	// The path must start with the literal prefix before **.
+	if !strings.HasPrefix(path, prefix) {
+		return false
+	}
+	remaining := path[len(prefix):]
+
+	if rest == "" || rest == "*" {
+		// ** or **/* — match anything under prefix.
+		return true
+	}
+
+	// Try matching rest recursively against every suffix of remaining.
+	parts := strings.Split(remaining, "/")
+	for i := range parts {
+		subpath := strings.Join(parts[i:], "/")
+		if matchGitAttrPattern(rest, subpath) {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Service) parseDiff(diffOutput string) ([]FileDiff, error) {
@@ -570,7 +712,7 @@ func (s *Service) getGitRevisionDiff(dir string, revisionID string, context int)
 	}
 
 	return &DiffResult{
-		Files: files,
+		Files: s.markGeneratedFiles(dir, files),
 		Type:  DiffTypeAll,
 	}, nil
 }
@@ -592,7 +734,7 @@ func (s *Service) getJJRevisionDiff(dir string, revisionID string, context int) 
 	}
 
 	return &DiffResult{
-		Files: files,
+		Files: s.markGeneratedFiles(dir, files),
 		Type:  DiffTypeAll,
 	}, nil
 }

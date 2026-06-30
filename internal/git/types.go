@@ -17,13 +17,14 @@ const (
 )
 
 type FileDiff struct {
-	Path      string     `json:"path"`
-	OldPath   string     `json:"oldPath,omitempty"`
-	Status    FileStatus `json:"status"`
-	Additions int        `json:"additions"`
-	Deletions int        `json:"deletions"`
-	IsBinary  bool       `json:"isBinary"`
-	Hunks     []Hunk     `json:"hunks"`
+	Path        string     `json:"path"`
+	OldPath     string     `json:"oldPath,omitempty"`
+	Status      FileStatus `json:"status"`
+	Additions   int        `json:"additions"`
+	Deletions   int        `json:"deletions"`
+	IsBinary    bool       `json:"isBinary"`
+	IsGenerated bool       `json:"isGenerated,omitempty"`
+	Hunks       []Hunk     `json:"hunks"`
 }
 
 type FileStatus string

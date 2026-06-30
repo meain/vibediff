@@ -478,6 +478,9 @@ export default function FileDiff({
             {file.status === 'renamed' && (
               <span className="text-[10px] font-bold px-1 py-0.5 rounded bg-accent/15 text-accent border border-accent/30">R</span>
             )}
+            {file.isGenerated && (
+              <span className="text-[10px] font-medium px-1 py-0.5 rounded bg-fg-muted/10 text-fg-muted border border-fg-muted/20" title="Generated file">generated</span>
+            )}
             {file.status === 'renamed' && file.oldPath && (
               <span className="text-xs text-fg-muted font-mono">
                 {file.oldPath} → {file.path}

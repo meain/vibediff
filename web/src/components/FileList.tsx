@@ -157,6 +157,7 @@ export default function FileList({ files, selectedFile, onSelectFile, displayMod
               {node.name}
             </span>
             <div className="flex items-center gap-1 text-xs flex-shrink-0">
+              {file.isGenerated && <span className="text-fg-muted" title="Generated file">gen</span>}
               {file.status === 'added' && <span className="font-bold text-success" title="Added">A</span>}
               {file.status === 'deleted' && <span className="font-bold text-danger" title="Deleted">D</span>}
               {file.status === 'renamed' && <span className="font-bold text-accent" title={`Renamed from ${file.oldPath ?? ''}`}>R</span>}
@@ -263,6 +264,7 @@ export default function FileList({ files, selectedFile, onSelectFile, displayMod
             {file.path}
           </span>
           <div className="flex items-center gap-1 text-xs flex-shrink-0">
+            {file.isGenerated && <span className="text-fg-muted" title="Generated file">gen</span>}
             {file.status === 'added' && <span className="font-bold text-success" title="Added">A</span>}
             {file.status === 'deleted' && <span className="font-bold text-danger" title="Deleted">D</span>}
             {file.status === 'renamed' && <span className="font-bold text-accent" title={`Renamed from ${file.oldPath ?? ''}`}>R</span>}

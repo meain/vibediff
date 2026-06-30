@@ -10,6 +10,7 @@ export interface FileDiff {
   additions: number
   deletions: number
   isBinary?: boolean
+  isGenerated?: boolean
   hunks: Hunk[]
 }
 

@@ -158,6 +158,16 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
     if (data?.files.length) {
       validateReviewed(data.files)
 
+      // Auto-collapse generated files (they can still be expanded manually).
+      const generatedPaths = data.files.filter(f => f.isGenerated).map(f => f.path)
+      if (generatedPaths.length > 0) {
+        setCollapsedFiles(prev => {
+          const next = new Set(prev)
+          generatedPaths.forEach(p => next.add(p))
+          return next
+        })
+      }
+
       if (!selectedFile) {
         const pending = initialFilePathRef.current
         if (pending) {
