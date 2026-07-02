@@ -45,7 +45,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
   // Directory from URL (used once on mount to override registry default)
   const initialDirFromUrlRef = useRef<string | null>(new URLSearchParams(window.location.search).get('dir'))
 
-  const { currentDirectory, backend, directories, setCurrentDirectory, registerDirectory, removeDirectory, validateDirectory } = useDirectory()
+  const { currentDirectory, backend, directories, homeDir, setCurrentDirectory, registerDirectory, removeDirectory, reorderDirectories, validateDirectory } = useDirectory()
   const { data, loading, error, refetch } = useDiff(currentDirectory, diffType, selectedRevision)
   const [copyFeedback, setCopyFeedback] = useState(false)
   const [copyAllFeedback, setCopyAllFeedback] = useState(false)
@@ -308,6 +308,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
               <DirectorySwitcher
                 currentDirectory={currentDirectory}
                 directories={directories}
+                homeDir={homeDir}
                 onSelectDirectory={(dir) => {
                   setCurrentDirectory(dir)
                   setSelectedRevision(null)
@@ -315,6 +316,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
                 }}
                 onAddDirectory={handleDirectoryChange}
                 onRemoveDirectory={removeDirectory}
+                onReorderDirectories={reorderDirectories}
                 onValidate={validateDirectory}
               />
               {isRefreshing && (

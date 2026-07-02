@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 
 	"github.com/gorilla/mux"
@@ -456,6 +457,14 @@ func (h *Handler) GetFileContent(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// GetConfig returns static server configuration useful to the frontend.
+func (h *Handler) GetConfig(w http.ResponseWriter, r *http.Request) {
+	homeDir, _ := os.UserHomeDir()
+	h.writeJSON(w, map[string]string{
+		"homeDir": homeDir,
+	})
+}
+
 // GetDirectoryInfo returns backend info for a specific directory.
 func (h *Handler) GetDirectoryInfo(w http.ResponseWriter, r *http.Request) {
 	dir := r.URL.Query().Get("directory")
@@ -506,6 +515,20 @@ func (h *Handler) RegisterDirectory(w http.ResponseWriter, r *http.Request) {
 		"directory": req.Directory,
 		"backend":   string(backend),
 	})
+}
+
+// ReorderDirectories replaces the registry list with the provided order.
+func (h *Handler) ReorderDirectories(w http.ResponseWriter, r *http.Request) {
+	var dirs []string
+	if err := json.NewDecoder(r.Body).Decode(&dirs); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if !h.registry.Reorder(dirs) {
+		http.Error(w, "reorder list does not match registered directories", http.StatusBadRequest)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // RemoveDirectory removes a directory from the registry.

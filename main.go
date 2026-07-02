@@ -152,9 +152,11 @@ func main() {
 	// NOTE: /api/directories/validate must be registered before the
 	// wildcard /api/directories/{path:.+} so gorilla/mux picks the
 	// more specific route first.
+	r.HandleFunc("/api/config", handler.GetConfig).Methods("GET")
 	r.HandleFunc("/api/directory", handler.GetDirectoryInfo).Methods("GET")
 	r.HandleFunc("/api/directories", handler.ListDirectories).Methods("GET")
 	r.HandleFunc("/api/directories", handler.RegisterDirectory).Methods("POST")
+	r.HandleFunc("/api/directories", handler.ReorderDirectories).Methods("PUT")
 	r.HandleFunc("/api/directories/validate", handler.ValidateDirectory).Methods("POST")
 	r.HandleFunc("/api/directories/{path:.+}", handler.RemoveDirectory).Methods("DELETE")
 

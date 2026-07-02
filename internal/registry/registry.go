@@ -58,6 +58,28 @@ func (r *Registry) List() []string {
 	return out
 }
 
+// Reorder replaces the directory list with dirs. Returns false if dirs does
+// not match the current set (same elements, different order).
+func (r *Registry) Reorder(dirs []string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if len(dirs) != len(r.dirs) {
+		return false
+	}
+	existing := make(map[string]struct{}, len(r.dirs))
+	for _, d := range r.dirs {
+		existing[d] = struct{}{}
+	}
+	for _, d := range dirs {
+		if _, ok := existing[d]; !ok {
+			return false
+		}
+	}
+	r.dirs = dirs
+	_ = r.save()
+	return true
+}
+
 // Contains reports whether dir is in the registry.
 func (r *Registry) Contains(dir string) bool {
 	r.mu.RLock()

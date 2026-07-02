@@ -10,11 +10,13 @@ interface UseDirectoryReturn {
   currentDirectory: string
   backend: VCSBackend
   directories: string[]
+  homeDir: string
   loading: boolean
   error: string | null
   setCurrentDirectory: (dir: string) => void
   registerDirectory: (dir: string) => Promise<void>
   removeDirectory: (dir: string) => Promise<void>
+  reorderDirectories: (dirs: string[]) => Promise<void>
   validateDirectory: (dir: string) => Promise<{ valid: boolean; error?: string }>
 }
 
@@ -22,6 +24,7 @@ export function useDirectory(): UseDirectoryReturn {
   const [directories, setDirectories] = useState<string[]>([])
   const [currentDirectory, setCurrentDirectoryState] = useState<string>('')
   const [backend, setBackend] = useState<VCSBackend>('git')
+  const [homeDir, setHomeDir] = useState<string>('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -50,10 +53,16 @@ export function useDirectory(): UseDirectoryReturn {
     }
   }, [])
 
-  // On mount: load directories, restore last-used dir (falling back to first in list)
+  // On mount: load directories, home dir, restore last-used dir (falling back to first in list)
   useEffect(() => {
     void (async () => {
-      const dirs = await fetchDirectories()
+      const [dirs] = await Promise.all([
+        fetchDirectories(),
+        fetch('/api/config')
+          .then(r => r.json() as Promise<{ homeDir: string }>)
+          .then(cfg => setHomeDir(cfg.homeDir))
+          .catch(() => {}),
+      ])
       if (dirs.length === 0) return
       const saved = localStorage.getItem('lastDirectory')
       setCurrentDirectoryState(saved && dirs.includes(saved) ? saved : dirs[0])
@@ -96,6 +105,16 @@ export function useDirectory(): UseDirectoryReturn {
     }
   }, [fetchDirectories])
 
+  const reorderDirectories = useCallback(async (dirs: string[]): Promise<void> => {
+    const resp = await fetch('/api/directories', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(dirs),
+    })
+    if (!resp.ok) throw new Error('Failed to reorder directories')
+    setDirectories(dirs)
+  }, [])
+
   const removeDirectory = useCallback(async (dir: string): Promise<void> => {
     const resp = await fetch(`/api/directories/${encodeURIComponent(dir)}`, { method: 'DELETE' })
     if (!resp.ok) throw new Error('Failed to remove directory')
@@ -123,11 +142,13 @@ export function useDirectory(): UseDirectoryReturn {
     currentDirectory,
     backend,
     directories,
+    homeDir,
     loading,
     error,
     setCurrentDirectory,
     registerDirectory,
     removeDirectory,
+    reorderDirectories,
     validateDirectory,
   }
 }
