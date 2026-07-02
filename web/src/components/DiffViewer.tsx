@@ -259,7 +259,9 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
 
   const selectedRevisionData = selectedRevision
     ? revisions.find(r => r.id === selectedRevision) ?? null
-    : null
+    : backend === 'jj'
+      ? revisions.find(r => r.isWorkingCopy) ?? null
+      : null
 
   const diffTotals = data
     ? data.files.reduce(
