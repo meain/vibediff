@@ -204,10 +204,12 @@ export default function FileList({ files, selectedFile, onSelectFile, displayMod
                 <path d="M1.75 1A1.75 1.75 0 000 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0016 13.25v-8.5A1.75 1.75 0 0014.25 3H7.5a.25.25 0 01-.2-.1l-.9-1.2C6.07 1.26 5.55 1 5 1H1.75z"/>
               </svg>
               <span className="text-xs font-semibold text-fg truncate flex-1">{node.name}</span>
-              <div className="flex items-center gap-1 text-xs flex-shrink-0">
-                <span className="text-success">+{folderChanges.additions}</span>
-                <span className="text-danger">-{folderChanges.deletions}</span>
-              </div>
+              {isCollapsed && (
+                <div className="flex items-center gap-1 text-xs flex-shrink-0">
+                  <span className="text-success">+{folderChanges.additions}</span>
+                  <span className="text-danger">-{folderChanges.deletions}</span>
+                </div>
+              )}
             </div>
             <div style={{ display: isCollapsed ? 'none' : 'block' }}>
               {node.children.map(child => renderTreeNode(child, depth + 1))}
