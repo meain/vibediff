@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import type { DiffType, ViewMode, FileDiff as FileDiffType } from '../types/diff'
 import { useDiff } from '../hooks/useDiff'
 import { useComments } from '../hooks/useComments'
@@ -55,6 +55,17 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
   const { reviewedFiles, toggleReviewed, clearReviewed, validateReviewed } = useReviewedFiles(currentDirectory, selectedRevision)
   const { reviewedRevisions, markRevisionReviewed, unmarkRevisionReviewed } = useReviewedRevisions(currentDirectory)
   const { revisions, loading: revisionsLoading, refetch: refetchRevisions } = useRevisions(currentDirectory)
+
+  // Top-level (non-reply) comment counts per file, for the file browser badges.
+  const commentCountsByFile = useMemo(() => {
+    const counts = new Map<string, number>()
+    if (!showComments) return counts
+    for (const comment of comments) {
+      if (comment.parentId) continue
+      counts.set(comment.file, (counts.get(comment.file) ?? 0) + 1)
+    }
+    return counts
+  }, [comments, showComments])
 
   const getCommentsForLineGated = useCallback(
     (file: string, line: number) => showComments ? getCommentsForLine(file, line) : [],
@@ -501,6 +512,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
                   }}
                   reviewedFiles={reviewedFiles}
                   onToggleReviewed={handleToggleReviewed}
+                  commentCounts={commentCountsByFile}
                 />
               </div>
             </Panel>
