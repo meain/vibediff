@@ -87,7 +87,7 @@ export function useComments(currentDirectory?: string, selectedRevision?: string
       console.error('Failed to add comment:', error)
       throw error
     }
-  }, [selectedRevision])
+  }, [currentDirectory, selectedRevision])
 
   const updateComment = useCallback(async (id: string, content: string) => {
     const response = await fetch(`/api/review/comment/${id}`, {
