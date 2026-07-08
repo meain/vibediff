@@ -140,7 +140,7 @@ export default function FileList({ files, selectedFile, onSelectFile, displayMod
                 ? 'bg-accent-muted border-l-2 border-l-accent -ml-[2px] pl-[calc(0.375rem-2px)] text-accent-emphasis font-medium'
                 : 'text-fg hover:bg-surface-raised'
               }`}
-            style={{ paddingLeft: `${String(depth * 16 + 6)}px` }}
+            style={{ paddingLeft: `${String(depth * 16 + 16)}px` }}
           >
             <input
               type="checkbox"
@@ -190,7 +190,7 @@ export default function FileList({ files, selectedFile, onSelectFile, displayMod
               style={{ paddingLeft: `${String(depth * 16 + 6)}px` }}
             >
               <svg
-                className={`w-2.5 h-2.5 flex-shrink-0 text-fg-muted transition-transform ${isCollapsed ? '' : 'rotate-90'}`}
+                className={`w-2.5 h-2.5 flex-shrink-0 -mr-1.5 text-fg-muted transition-transform ${isCollapsed ? '' : 'rotate-90'}`}
                 fill="currentColor"
                 viewBox="0 0 16 16"
               >
