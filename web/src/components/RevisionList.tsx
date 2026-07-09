@@ -16,17 +16,12 @@ interface RevisionListProps {
 const COL_W = 12
 const NODE_R = 3
 
-function GraphCell({ row, totalCols, rowHeight, additions, deletions }: {
-  row: GraphRow; totalCols: number; rowHeight: number
-  additions?: number; deletions?: number
-}): React.ReactElement {
+function GraphCell({ row, totalCols, rowHeight }: { row: GraphRow; totalCols: number; rowHeight: number }): React.ReactElement {
   const W = COL_W
   const H = rowHeight
   const nx = row.col * W + W / 2
   const ny = H / 2
-  const graphW = Math.max(totalCols * W, W)
-  const hasStats = additions !== undefined || deletions !== undefined
-  const width = graphW + (hasStats ? 50 : 0)
+  const width = Math.max(totalCols * W, W)
 
   const getColor = (col: number): string => getLaneColor(row.laneColors.get(col) ?? 0)
 
@@ -111,14 +106,6 @@ function GraphCell({ row, totalCols, rowHeight, additions, deletions }: {
 
       {/* Node circle */}
       <circle cx={nx} cy={ny} r={NODE_R} fill={getLaneColor(row.colorIndex)} />
-
-      {/* Diff stats */}
-      {hasStats && (
-        <text x={graphW + 3} y={H - 4} fontSize="8" fontFamily="monospace">
-          <tspan fill="var(--color-diff-add-fg, #16a34a)">+{additions ?? 0}</tspan>
-          <tspan dx="2" fill="var(--color-diff-del-fg, #dc2626)">-{deletions ?? 0}</tspan>
-        </text>
-      )}
     </svg>
   )
 }
@@ -169,7 +156,7 @@ function RevisionRow({
       style={{ minHeight: ROW_HEIGHT, display: 'flex', alignItems: 'stretch' }}
     >
       <div style={{ flexShrink: 0, display: 'flex', alignItems: 'stretch' }}>
-        <GraphCell row={graphRow} totalCols={totalCols} rowHeight={rowHeight} additions={rev.additions} deletions={rev.deletions} />
+        <GraphCell row={graphRow} totalCols={totalCols} rowHeight={rowHeight} />
       </div>
 
       <div ref={contentRef} className="flex flex-col justify-center py-1.5 pr-2 min-w-0 flex-1">
@@ -209,6 +196,12 @@ function RevisionRow({
               <CopyButton value={b} title={`Copy bookmark "${b}"`} />
             </span>
           ))}
+          {(rev.additions !== undefined || rev.deletions !== undefined) && (
+            <>
+              <span className="shrink-0 font-mono" style={{ color: 'var(--color-diff-add-fg, #16a34a)' }}>+{rev.additions ?? 0}</span>
+              <span className="shrink-0 font-mono" style={{ color: 'var(--color-diff-del-fg, #dc2626)' }}>-{rev.deletions ?? 0}</span>
+            </>
+          )}
         </div>
       </div>
     </div>
