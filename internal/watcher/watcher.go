@@ -205,7 +205,7 @@ func (w *GitWatcher) checkDir(dir string) {
 }
 
 func detectChangeType(status string, backend git.VCSBackend) string {
-	for _, line := range strings.Split(status, "\n") {
+	for line := range strings.SplitSeq(status, "\n") {
 		if len(line) < 2 {
 			continue
 		}
