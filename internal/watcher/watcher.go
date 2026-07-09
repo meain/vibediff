@@ -200,20 +200,33 @@ func (w *GitWatcher) checkDir(dir string) {
 	w.lastStatus[dir] = output
 
 	backend := w.service.GetBackend(dir)
-	changeType := "file_changed"
-	if backend == git.BackendJJ {
-		if strings.Contains(output, "A ") {
-			changeType = "file_added"
-		} else if strings.Contains(output, "D ") {
-			changeType = "file_deleted"
+	changeType := detectChangeType(output, backend)
+	w.hub.NotifyChange(changeType, dir)
+}
+
+func detectChangeType(status string, backend git.VCSBackend) string {
+	for _, line := range strings.Split(status, "\n") {
+		if len(line) < 2 {
+			continue
 		}
-	} else {
-		if strings.Contains(output, "??") {
-			changeType = "file_added"
-		} else if strings.Contains(output, " D ") {
-			changeType = "file_deleted"
+		if backend == git.BackendJJ {
+			// jj status lines start with "A " or "D " as the first two chars
+			prefix := line[:2]
+			if prefix == "A " {
+				return "file_added"
+			}
+			if prefix == "D " {
+				return "file_deleted"
+			}
+		} else {
+			// git status --porcelain lines: "?? path" for untracked, " D path" for deleted
+			if strings.HasPrefix(line, "??") {
+				return "file_added"
+			}
+			if strings.HasPrefix(line, " D") {
+				return "file_deleted"
+			}
 		}
 	}
-
-	w.hub.NotifyChange(changeType, dir)
+	return "file_changed"
 }
