@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useLayoutEffect } from 'react'
 import type { Revision, VCSBackend } from '../types/diff'
 import CopyButton from './CopyButton'
 import { formatRelativeTime } from '../utils/time'
@@ -112,6 +112,96 @@ function GraphCell({ row, totalCols, rowHeight }: { row: GraphRow; totalCols: nu
 
 const ROW_HEIGHT = 44
 
+function RevisionRow({
+  rev,
+  graphRow,
+  totalCols,
+  isSelected,
+  onSelect,
+  reviewedRevisions,
+  backend,
+}: {
+  rev: Revision
+  graphRow: GraphRow
+  totalCols: number
+  isSelected: boolean
+  onSelect: () => void
+  reviewedRevisions?: Set<string>
+  backend: VCSBackend
+}): React.ReactElement {
+  const contentRef = useRef<HTMLDivElement>(null)
+  const [rowHeight, setRowHeight] = useState(ROW_HEIGHT)
+
+  useLayoutEffect(() => {
+    const el = contentRef.current
+    if (!el) return
+    const ro = new ResizeObserver(() => {
+      if (contentRef.current) setRowHeight(contentRef.current.offsetHeight)
+    })
+    ro.observe(el)
+    return () => { ro.disconnect() }
+  }, [])
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onSelect}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect() } }}
+      className={`w-full text-left text-xs border-b border-edge-subtle transition-colors cursor-pointer ${
+        isSelected
+          ? 'bg-accent-muted text-accent-emphasis'
+          : 'text-fg hover:bg-surface-raised'
+      }`}
+      style={{ minHeight: ROW_HEIGHT, display: 'flex', alignItems: 'stretch' }}
+    >
+      <div style={{ flexShrink: 0, display: 'flex', alignItems: 'stretch' }}>
+        <GraphCell row={graphRow} totalCols={totalCols} rowHeight={rowHeight} />
+      </div>
+
+      <div ref={contentRef} className="flex flex-col justify-center py-1.5 pr-2 min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <span
+            className="font-mono text-[10px] px-1 py-0.5 rounded bg-surface-inset text-fg-muted shrink-0 select-text cursor-text"
+            onClick={(e) => { e.stopPropagation(); }}
+            onMouseDown={(e) => { e.stopPropagation(); }}
+            title={rev.id}
+          >
+            {rev.shortId}
+          </span>
+          <CopyButton value={rev.id} title="Copy commit ID" />
+          {reviewedRevisions?.has(rev.isWorkingCopy && backend === 'jj' ? 'working-copy' : rev.id) && (
+            <span className="text-[10px] text-success shrink-0" title="All files reviewed">✓</span>
+          )}
+          <span className="truncate">
+            {rev.description || '(no description)'}
+          </span>
+          {rev.isWorkingCopy && (
+            <span className="shrink-0 text-[10px] px-1 py-0.5 rounded bg-accent-muted text-accent-emphasis">
+              @
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-1 mt-0.5 text-[10px] text-fg-muted flex-wrap">
+          <span className="truncate">{rev.author}</span>
+          <span>·</span>
+          <span className="shrink-0">{formatRelativeTime(rev.timestamp)}</span>
+          {rev.bookmarks && rev.bookmarks.map((b) => (
+            <span
+              key={b}
+              className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded font-mono leading-none"
+              style={{ background: 'var(--color-bookmark-bg)', color: 'var(--color-bookmark-fg)' }}
+            >
+              {b}
+              <CopyButton value={b} title={`Copy bookmark "${b}"`} />
+            </span>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function RevisionList({
   revisions,
   loading,
@@ -182,79 +272,27 @@ export default function RevisionList({
       )}
 
       {filteredRevisions.map((rev, idx) => {
-        const graphRow = graphRows[idx]
         const isSelected = rev.isWorkingCopy && backend === 'jj'
           ? selectedRevision === null
           : selectedRevision === rev.id
 
-        const handleSelect = (): void => {
-          if (rev.isWorkingCopy && backend === 'jj') {
-            onSelectRevision(null)
-          } else {
-            onSelectRevision(rev.id)
-          }
-        }
-
         return (
-          <div
+          <RevisionRow
             key={rev.id}
-            role="button"
-            tabIndex={0}
-            onClick={handleSelect}
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSelect(); } }}
-            className={`w-full text-left text-xs border-b border-edge-subtle transition-colors cursor-pointer ${
-              isSelected
-                ? 'bg-accent-muted text-accent-emphasis'
-                : 'text-fg hover:bg-surface-raised'
-            }`}
-            style={{ minHeight: ROW_HEIGHT, display: 'flex', alignItems: 'stretch' }}
-          >
-            {/* Graph column */}
-            <div style={{ flexShrink: 0, display: 'flex', alignItems: 'stretch' }}>
-              <GraphCell row={graphRow} totalCols={totalCols} rowHeight={ROW_HEIGHT} />
-            </div>
-
-            {/* Revision info */}
-            <div className="flex flex-col justify-center py-1.5 pr-2 min-w-0 flex-1">
-              <div className="flex items-center gap-1.5">
-                <span
-                  className="font-mono text-[10px] px-1 py-0.5 rounded bg-surface-inset text-fg-muted shrink-0 select-text cursor-text"
-                  onClick={(e) => { e.stopPropagation(); }}
-                  onMouseDown={(e) => { e.stopPropagation(); }}
-                  title={rev.id}
-                >
-                  {rev.shortId}
-                </span>
-                <CopyButton value={rev.id} title="Copy commit ID" />
-                {reviewedRevisions?.has(rev.isWorkingCopy && backend === 'jj' ? 'working-copy' : rev.id) && (
-                  <span className="text-[10px] text-success shrink-0" title="All files reviewed">✓</span>
-                )}
-                <span className="truncate">
-                  {rev.description || '(no description)'}
-                </span>
-                {rev.isWorkingCopy && (
-                  <span className="shrink-0 text-[10px] px-1 py-0.5 rounded bg-accent-muted text-accent-emphasis">
-                    @
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-1 mt-0.5 text-[10px] text-fg-muted flex-wrap">
-                <span className="truncate">{rev.author}</span>
-                <span>·</span>
-                <span className="shrink-0">{formatRelativeTime(rev.timestamp)}</span>
-                {rev.bookmarks && rev.bookmarks.map((b) => (
-                  <span
-                    key={b}
-                    className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded font-mono leading-none"
-                    style={{ background: 'var(--color-bookmark-bg)', color: 'var(--color-bookmark-fg)' }}
-                  >
-                    {b}
-                    <CopyButton value={b} title={`Copy bookmark "${b}"`} />
-                  </span>
-                ))}
-              </div>
-            </div>
-          </div>
+            rev={rev}
+            graphRow={graphRows[idx]}
+            totalCols={totalCols}
+            isSelected={isSelected}
+            onSelect={() => {
+              if (rev.isWorkingCopy && backend === 'jj') {
+                onSelectRevision(null)
+              } else {
+                onSelectRevision(rev.id)
+              }
+            }}
+            reviewedRevisions={reviewedRevisions}
+            backend={backend}
+          />
         )
       })}
     </div>
