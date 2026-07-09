@@ -15,10 +15,14 @@ interface UseCommentsReturn {
   formatCommentsForExport: (revisions?: Revision[]) => string
   formatPendingCommentsForExport: (revisions?: Revision[]) => string
   clearComments: () => Promise<void>
+  fetchError: string | null
+  clearFetchError: () => void
 }
 
 export function useComments(currentDirectory?: string, selectedRevision?: string | null): UseCommentsReturn {
   const [comments, setComments] = useState<Comment[]>([])
+  const [fetchError, setFetchError] = useState<string | null>(null)
+  const clearFetchError = useCallback(() => { setFetchError(null) }, [])
   // Tolerate the absence of a WebSocketProvider (unit tests render
   // useComments directly with renderHook). Outside a provider the value
   // stays at zero, so the effect runs only on mount and on
@@ -50,9 +54,11 @@ export function useComments(currentDirectory?: string, selectedRevision?: string
         if (response.ok) {
           const data = await response.json() as Comment[]
           setComments(data)
+          setFetchError(null)
         }
       } catch (error) {
         console.error('Failed to fetch comments:', error)
+        setFetchError('Failed to load comments')
       }
     }
 
@@ -320,5 +326,7 @@ export function useComments(currentDirectory?: string, selectedRevision?: string
     formatCommentsForExport,
     formatPendingCommentsForExport,
     clearComments,
+    fetchError,
+    clearFetchError,
   }
 }

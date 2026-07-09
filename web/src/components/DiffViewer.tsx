@@ -18,6 +18,7 @@ import SettingsPanel from './SettingsPanel'
 import DirectorySwitcher from './DirectorySwitcher'
 import RevisionList from './RevisionList'
 import CommitSummary from './CommitSummary'
+import Toast from './Toast'
 
 interface DiffViewerProps {
   className?: string
@@ -51,7 +52,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
   const [copyAllFeedback, setCopyAllFeedback] = useState(false)
   const [showComments, setShowComments] = useState(true)
   const { lastUpdate, lastUpdateDir } = useWebSocketUpdates()
-  const { comments, addComment, updateComment, deleteComment, resolveComment, reopenComment, getCommentsForLine, getCommentRangeLines, formatCommentsForExport, formatPendingCommentsForExport, clearComments } = useComments(currentDirectory, selectedRevision)
+  const { comments, addComment, updateComment, deleteComment, resolveComment, reopenComment, getCommentsForLine, getCommentRangeLines, formatCommentsForExport, formatPendingCommentsForExport, clearComments, fetchError, clearFetchError } = useComments(currentDirectory, selectedRevision)
   const { reviewedFiles, toggleReviewed, clearReviewed, validateReviewed } = useReviewedFiles(currentDirectory, selectedRevision)
   const { reviewedRevisions, markRevisionReviewed, unmarkRevisionReviewed } = useReviewedRevisions(currentDirectory)
   const { revisions, loading: revisionsLoading, refetch: refetchRevisions } = useRevisions(currentDirectory)
@@ -728,6 +729,11 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
         onClose={() => { setShowHelp(false); }}
       />
       </div>
+
+      {/* Error Toast */}
+      {fetchError !== null && (
+        <Toast message={fetchError} onDismiss={clearFetchError} type="error" />
+      )}
     </>
   )
 }
