@@ -651,13 +651,16 @@ func (s *Service) getJJRevisions(dir string, limit int) ([]Revision, error) {
 		return []Revision{}, nil
 	}
 
-	lines := strings.Split(strings.TrimSpace(output), "\n")
+	// diff.stat() emits one line per file plus a summary line, so commits are
+	// separated by blank lines (\n\n). Split on that to keep each commit's full
+	// stat block together before splitting on \x00 for fields.
 	var revisions []Revision
-	for _, line := range lines {
-		if line == "" {
+	for _, block := range strings.Split(strings.TrimSpace(output), "\n\n") {
+		block = strings.TrimSpace(block)
+		if block == "" {
 			continue
 		}
-		parts := strings.SplitN(line, "\x00", 9)
+		parts := strings.SplitN(block, "\x00", 8)
 		if len(parts) < 5 {
 			continue
 		}
@@ -675,7 +678,12 @@ func (s *Service) getJJRevisions(dir string, limit int) ([]Revision, error) {
 			rev.Parents = splitAndFilter(parts[6], "|")
 		}
 		if len(parts) >= 8 {
-			rev.Additions, rev.Deletions = parseDiffStat(parts[7])
+			for line := range strings.SplitSeq(parts[7], "\n") {
+				if strings.Contains(line, "changed") {
+					rev.Additions, rev.Deletions = parseDiffStat(line)
+					break
+				}
+			}
 		}
 		revisions = append(revisions, rev)
 	}
