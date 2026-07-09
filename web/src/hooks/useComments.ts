@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useContext } from 'react'
+import { useState, useCallback, useEffect, useContext, useMemo } from 'react'
 import type { Comment, Revision } from '../types/diff'
 import { WebSocketContext } from '../contexts/WebSocketContext'
 import { groupIntoThreads } from '../utils/threads'
@@ -136,10 +136,26 @@ export function useComments(currentDirectory?: string, selectedRevision?: string
     }
   }, [])
 
-  const getCommentsForLine = useCallback((file: string, line: number) => {
-    // lineEnd === 0 means the API caller omitted it; treat it as equal to line.
-    return comments.filter(c => c.file === file && (c.lineEnd === line || (c.lineEnd === 0 && c.line === line)))
+  const commentIndex = useMemo((): Map<string, Map<number, Comment[]>> => {
+    const index = new Map<string, Map<number, Comment[]>>()
+    for (const c of comments) {
+      // lineEnd === 0 means the API caller omitted it; index on c.line instead.
+      const key = c.lineEnd === 0 ? c.line : c.lineEnd
+      let fileMap = index.get(c.file)
+      if (!fileMap) {
+        fileMap = new Map<number, Comment[]>()
+        index.set(c.file, fileMap)
+      }
+      const list = fileMap.get(key) ?? []
+      list.push(c)
+      fileMap.set(key, list)
+    }
+    return index
   }, [comments])
+
+  const getCommentsForLine = useCallback((file: string, line: number) => {
+    return commentIndex.get(file)?.get(line) ?? []
+  }, [commentIndex])
 
   const getCommentRangeLines = useCallback((file: string, lineOrder: number[]): Set<number> => {
     const result = new Set<number>()
