@@ -49,6 +49,8 @@ export interface Revision {
   isWorkingCopy?: boolean
   bookmarks?: string[]
   parents?: string[]
+  additions?: number
+  deletions?: number
 }
 
 export type CommentAuthor = 'user' | 'agent'

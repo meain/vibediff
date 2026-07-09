@@ -186,6 +186,13 @@ function RevisionRow({
           <span className="truncate">{rev.author}</span>
           <span>·</span>
           <span className="shrink-0">{formatRelativeTime(rev.timestamp)}</span>
+          {(rev.additions !== undefined || rev.deletions !== undefined) && (
+            <>
+              <span>·</span>
+              <span className="shrink-0 font-mono" style={{ color: 'var(--color-diff-add-fg, #16a34a)' }}>+{rev.additions ?? 0}</span>
+              <span className="shrink-0 font-mono" style={{ color: 'var(--color-diff-del-fg, #dc2626)' }}>-{rev.deletions ?? 0}</span>
+            </>
+          )}
           {rev.bookmarks && rev.bookmarks.map((b) => (
             <span
               key={b}

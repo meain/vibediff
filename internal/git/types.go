@@ -75,4 +75,6 @@ type Revision struct {
 	IsWorkingCopy bool     `json:"isWorkingCopy,omitempty"`
 	Bookmarks     []string `json:"bookmarks,omitempty"`
 	Parents       []string `json:"parents,omitempty"`
+	Additions     int      `json:"additions,omitempty"`
+	Deletions     int      `json:"deletions,omitempty"`
 }

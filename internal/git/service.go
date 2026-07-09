@@ -6,6 +6,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 )
@@ -554,9 +556,28 @@ func (s *Service) GetRevisions(dir string, limit int) ([]Revision, error) {
 	return s.getGitRevisions(dir, limit)
 }
 
+var reInsert = regexp.MustCompile(`(\d+) insertions?`)
+var reDelete = regexp.MustCompile(`(\d+) deletions?`)
+
+// parseDiffStat extracts insertion/deletion counts from a --shortstat line like
+// " 3 files changed, 47 insertions(+), 2 deletions(-)".
+func parseDiffStat(s string) (additions, deletions int) {
+	if m := reInsert.FindStringSubmatch(s); len(m) >= 2 {
+		additions, _ = strconv.Atoi(m[1])
+	}
+	if m := reDelete.FindStringSubmatch(s); len(m) >= 2 {
+		deletions, _ = strconv.Atoi(m[1])
+	}
+	return
+}
+
 func (s *Service) getGitRevisions(dir string, limit int) ([]Revision, error) {
-	// Use US (0x1F) as a field separator instead of NUL
-	output, err := s.runGitCommand(dir, "log", "--format=format:%H\x1f%h\x1f%s\x1f%an\x1f%aI\x1f%D\x1f%P", fmt.Sprintf("-n%d", limit))
+	// \x01 (SOH) prefixes each commit header so blocks can be split cleanly
+	// even when --shortstat adds extra lines after each entry.
+	output, err := s.runGitCommand(dir, "log",
+		`--format=tformat:%x01%H%x1F%h%x1F%s%x1F%an%x1F%aI%x1F%D%x1F%P`,
+		"--shortstat",
+		fmt.Sprintf("-n%d", limit))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get git log: %w", err)
 	}
@@ -565,10 +586,14 @@ func (s *Service) getGitRevisions(dir string, limit int) ([]Revision, error) {
 		return []Revision{}, nil
 	}
 
-	lines := strings.Split(strings.TrimSpace(output), "\n")
 	var revisions []Revision
-	for _, line := range lines {
-		parts := strings.SplitN(line, "\x1f", 7)
+	for block := range strings.SplitSeq(output, "\x01") {
+		block = strings.TrimSpace(block)
+		if block == "" {
+			continue
+		}
+		lines := strings.Split(block, "\n")
+		parts := strings.SplitN(lines[0], "\x1f", 7)
 		if len(parts) < 5 {
 			continue
 		}
@@ -584,6 +609,12 @@ func (s *Service) getGitRevisions(dir string, limit int) ([]Revision, error) {
 		}
 		if len(parts) >= 7 && parts[6] != "" {
 			rev.Parents = strings.Fields(parts[6])
+		}
+		for _, line := range lines[1:] {
+			if strings.Contains(line, "changed") {
+				rev.Additions, rev.Deletions = parseDiffStat(line)
+				break
+			}
 		}
 		revisions = append(revisions, rev)
 	}
@@ -609,7 +640,8 @@ func parseGitDecorations(decorate string) []string {
 }
 
 func (s *Service) getJJRevisions(dir string, limit int) ([]Revision, error) {
-	template := `change_id ++ "\x00" ++ change_id.shortest(8) ++ "\x00" ++ description.first_line() ++ "\x00" ++ author.name() ++ "\x00" ++ author.timestamp() ++ "\x00" ++ bookmarks.join("|") ++ "\x00" ++ if(parents.len() > 0, parents.first().change_id(), "") ++ if(parents.len() > 1, "|" ++ parents.last().change_id(), "") ++ "\n"`
+	// diff.stat(1000) gives "N files changed, X insertions(+), Y deletions(-)"
+	template := `change_id ++ "\x00" ++ change_id.shortest(8) ++ "\x00" ++ description.first_line() ++ "\x00" ++ author.name() ++ "\x00" ++ author.timestamp() ++ "\x00" ++ bookmarks.join("|") ++ "\x00" ++ if(parents.len() > 0, parents.first().change_id(), "") ++ if(parents.len() > 1, "|" ++ parents.last().change_id(), "") ++ "\x00" ++ diff.stat(1000) ++ "\n"`
 	output, err := s.runJJCommand(dir, "log", "--no-graph", "-r", fmt.Sprintf("ancestors(@, %d)", limit), "-T", template)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get jj log: %w", err)
@@ -625,7 +657,7 @@ func (s *Service) getJJRevisions(dir string, limit int) ([]Revision, error) {
 		if line == "" {
 			continue
 		}
-		parts := strings.SplitN(line, "\x00", 7)
+		parts := strings.SplitN(line, "\x00", 9)
 		if len(parts) < 5 {
 			continue
 		}
@@ -641,6 +673,9 @@ func (s *Service) getJJRevisions(dir string, limit int) ([]Revision, error) {
 		}
 		if len(parts) >= 7 && parts[6] != "" {
 			rev.Parents = splitAndFilter(parts[6], "|")
+		}
+		if len(parts) >= 8 {
+			rev.Additions, rev.Deletions = parseDiffStat(parts[7])
 		}
 		revisions = append(revisions, rev)
 	}
