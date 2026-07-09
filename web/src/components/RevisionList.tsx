@@ -197,10 +197,10 @@ function RevisionRow({
             </span>
           ))}
           {(rev.additions !== undefined || rev.deletions !== undefined) && (
-            <>
-              <span className="shrink-0 font-mono" style={{ color: 'var(--color-diff-add-fg, #16a34a)' }}>+{rev.additions ?? 0}</span>
-              <span className="shrink-0 font-mono" style={{ color: 'var(--color-diff-del-fg, #dc2626)' }}>-{rev.deletions ?? 0}</span>
-            </>
+            <span className="ml-auto flex items-center gap-0.5 shrink-0 font-mono">
+              <span style={{ color: 'var(--color-diff-add-fg, #16a34a)' }}>+{rev.additions ?? 0}</span>
+              <span style={{ color: 'var(--color-diff-del-fg, #dc2626)' }}>-{rev.deletions ?? 0}</span>
+            </span>
           )}
         </div>
       </div>
