@@ -652,7 +652,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
                     })
                   }
                 }}
-                onCancelComment={() => { setCommentDialog(null); }}
+                onCancelComment={handleCancelComment}
               />
             ))}
           </div>
@@ -665,33 +665,25 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
               file={selectedFile}
               viewMode={viewMode}
               collapsed={false}
-              onToggleCollapse={() => { /* Single file view doesn't collapse */ }}
-              onAddComment={(line, lineEnd) => { setCommentDialog({ file: selectedFile.path, line, lineEnd }); }}
-              onViewFullFile={() => { setFullFileModal(selectedFile.path); }}
+              onToggleCollapse={handleSingleFileToggleCollapse}
+              onAddComment={handleSingleFileAddComment}
+              onViewFullFile={handleSingleFileViewFullFile}
               getCommentsForLine={getCommentsForLineGated}
               getCommentRangeLines={getCommentRangeLinesGated}
               onDeleteComment={deleteComment}
               onUpdateComment={updateComment}
-              onAddReply={async (parent, content) => { await addComment(parent.file, parent.line, content, parent.lineEnd, parent.id) }}
+              onAddReply={handleSingleFileAddReply}
               wrapLines={wrapLines}
               diffType={diffType}
               selectedRevision={selectedRevision}
               directory={currentDirectory}
               isReviewed={reviewedFiles.has(selectedFile.path)}
-              onToggleReviewed={() => { handleToggleReviewed(selectedFile); }}
+              onToggleReviewed={handleSingleFileToggleReviewed}
               commentCount={showComments ? comments.filter(c => c.file === selectedFile.path && !c.parentId).length : 0}
               pendingCommentCount={showComments ? comments.filter(c => c.file === selectedFile.path && !c.parentId && c.status === 'open').length : 0}
               activeComment={commentDialog?.file === selectedFile.path ? { line: commentDialog.line, lineEnd: commentDialog.lineEnd } : null}
-              onSubmitComment={(content) => {
-                if (commentDialog) {
-                  void addComment(commentDialog.file, commentDialog.line, content, commentDialog.lineEnd).then(() => {
-                    setCommentDialog(null)
-                  }).catch((err: unknown) => {
-                    console.error('Failed to add comment:', err)
-                  })
-                }
-              }}
-              onCancelComment={() => { setCommentDialog(null); }}
+              onSubmitComment={handleSingleFileSubmitComment}
+              onCancelComment={handleCancelComment}
             />
           </div>
             )
