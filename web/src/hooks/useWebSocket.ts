@@ -9,6 +9,7 @@ interface WSMessage {
 export function useWebSocket(onUpdate: (dir: string) => void, onCommentUpdate?: (dir: string) => void): void {
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingUpdateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isConnectingRef = useRef(false)
   const reconnectAttemptsRef = useRef(0)
 
@@ -62,7 +63,11 @@ export function useWebSocket(onUpdate: (dir: string) => void, onCommentUpdate?: 
             // Connected to live updates
           } else if (data.type === 'file_changed' || data.type === 'file_added' || data.type === 'file_deleted') {
             // Trigger update after a short delay to ensure git has finished processing
-            setTimeout(() => {
+            if (pendingUpdateTimerRef.current) {
+              clearTimeout(pendingUpdateTimerRef.current)
+            }
+            pendingUpdateTimerRef.current = setTimeout(() => {
+              pendingUpdateTimerRef.current = null
               onUpdateRef.current(dir)
             }, 300)
           } else if (data.type === 'comment_changed') {
@@ -103,6 +108,9 @@ export function useWebSocket(onUpdate: (dir: string) => void, onCommentUpdate?: 
     return () => {
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current)
+      }
+      if (pendingUpdateTimerRef.current) {
+        clearTimeout(pendingUpdateTimerRef.current)
       }
       if (wsRef.current) {
         wsRef.current.close()

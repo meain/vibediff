@@ -267,6 +267,37 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
     }
   }
 
+  const handleCancelComment = useCallback(() => { setCommentDialog(null); }, [])
+
+  const handleSingleFileToggleCollapse = useCallback(() => { /* Single file view doesn't collapse */ }, [])
+
+  const handleSingleFileAddComment = useCallback((line: number, lineEnd: number) => {
+    if (selectedFile) setCommentDialog({ file: selectedFile.path, line, lineEnd })
+  }, [selectedFile])
+
+  const handleSingleFileViewFullFile = useCallback(() => {
+    if (selectedFile) setFullFileModal(selectedFile.path)
+  }, [selectedFile])
+
+  const handleSingleFileToggleReviewed = useCallback(() => {
+    if (selectedFile) handleToggleReviewed(selectedFile)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedFile, reviewedFiles])
+
+  const handleSingleFileAddReply = useCallback(async (parent: import('../types/diff').Comment, content: string) => {
+    await addComment(parent.file, parent.line, content, parent.lineEnd, parent.id)
+  }, [addComment])
+
+  const handleSingleFileSubmitComment = useCallback((content: string) => {
+    if (commentDialog) {
+      void addComment(commentDialog.file, commentDialog.line, content, commentDialog.lineEnd).then(() => {
+        setCommentDialog(null)
+      }).catch((err: unknown) => {
+        console.error('Failed to add comment:', err)
+      })
+    }
+  }, [commentDialog, addComment])
+
 
   const selectedRevisionData = selectedRevision
     ? revisions.find(r => r.id === selectedRevision) ?? null

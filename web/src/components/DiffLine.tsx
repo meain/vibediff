@@ -27,6 +27,7 @@ const LINE_TYPE_CONFIG = {
 // Add Comment Button Component
 const AddCommentButton = ({ onDragStart }: { onDragStart?: () => void }): React.ReactElement => (
   <button
+    aria-label="Add comment"
     onMouseDown={(e) => {
       e.preventDefault()
       onDragStart?.()

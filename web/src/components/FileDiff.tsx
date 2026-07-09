@@ -124,7 +124,7 @@ interface FileDiffProps {
   onCancelComment?: () => void
 }
 
-export default function FileDiff({
+function FileDiff({
   file,
   viewMode,
   collapsed,
@@ -667,6 +667,8 @@ export default function FileDiff({
     </div>
   )
 }
+
+export default React.memo(FileDiff)
 
 interface InlineCommentInfo {
   activeComment: { line: number; lineEnd: number }
