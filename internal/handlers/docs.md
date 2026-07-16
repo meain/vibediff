@@ -125,17 +125,22 @@ Create a new comment.
 
 ```json
 {
-  "directory": "/path/to/repo",
-  "file":      "internal/git/parser.go",
-  "line":      42,
-  "lineEnd":   42,
-  "content":   "Why is this offset by one?",
-  "revision":  "",
-  "parentId":  ""
+  "directory":  "/path/to/repo",
+  "file":       "internal/git/parser.go",
+  "line":       42,
+  "lineEnd":    42,
+  "content":    "Why is this offset by one?",
+  "revision":   "",
+  "parentId":   "",
+  "authorName": ""
 }
 ```
 
 Returns the created Comment object with its generated `id`.
+
+`authorName` is optional (max 50 characters) and is typically used by agent
+clients to tag which kind of agent posted the comment (e.g. `"explainer"`);
+the UI renders it as `agent:<authorName>`.
 
 **Replies**: when `parentId` is set, `file`, `line`, `lineEnd`, `revision`, and
 `directory` are automatically inherited from the parent — you only need to
