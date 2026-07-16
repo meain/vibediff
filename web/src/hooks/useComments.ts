@@ -183,7 +183,10 @@ export function useComments(currentDirectory?: string, selectedRevision?: string
     if (comments.length === 0) return ''
 
     const threads = new Map(groupIntoThreads(comments).map(t => [t.root.id, t]))
-    const authorLabel = (c: Comment): string => c.author === 'agent' ? 'Agent' : 'User'
+    const authorLabel = (c: Comment): string => {
+      if (c.author !== 'agent') return 'User'
+      return c.authorName ? `agent:${c.authorName}` : 'Agent'
+    }
 
     const renderSection = (sectionRoots: Comment[]): string[] => {
       // Group roots by file
@@ -259,7 +262,10 @@ export function useComments(currentDirectory?: string, selectedRevision?: string
     if (pendingRoots.length === 0) return ''
 
     const threads = new Map(groupIntoThreads(comments).map(t => [t.root.id, t]))
-    const authorLabel = (c: Comment): string => c.author === 'agent' ? 'Agent' : 'User'
+    const authorLabel = (c: Comment): string => {
+      if (c.author !== 'agent') return 'User'
+      return c.authorName ? `agent:${c.authorName}` : 'Agent'
+    }
     const revMap = new Map<string, Revision>()
     for (const r of revisions ?? []) revMap.set(r.id, r)
 

@@ -64,6 +64,7 @@ export interface Comment {
   side?: string
   content: string
   author: CommentAuthor
+  authorName?: string
   parentId?: string
   status: CommentStatus
   revision?: string

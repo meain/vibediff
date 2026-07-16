@@ -287,7 +287,7 @@ mounted at `/mcp`. Point any MCP client at `http://localhost:8888/mcp`.
 |------|-------------|
 | `list_open_comments`  | Return all open comments across all registered directories, each with its pinned diff hunk. |
 | `wait_for_comment`    | Long-poll until a new user comment arrives. Pass `next_since_id` from the previous response as cursor. Returns immediately if a backlog exists; empty array on timeout — call again to keep listening. |
-| `reply_to_comment`    | Post an agent reply as a child of an existing comment thread. |
+| `reply_to_comment`    | Post an agent reply as a child of an existing comment thread. Accepts an optional `author_name` (e.g. `"explainer"`) shown in the UI as `agent:<author_name>`. |
 | `get_full_hunk`       | Fetch the complete diff hunk for one comment ID. |
 | `delete_comment`      | Delete a comment thread (cascades to replies). Use when the request has been addressed in code. |
 
@@ -317,6 +317,7 @@ mounted at `/mcp`. Point any MCP client at `http://localhost:8888/mcp`.
   "lineEnd":   44,
   "content":   "Why is this offset by one?",
   "author":    "user",
+  "authorName": "",
   "parentId":  "",
   "status":    "open",
   "revision":  "",
@@ -326,6 +327,7 @@ mounted at `/mcp`. Point any MCP client at `http://localhost:8888/mcp`.
 ```
 
 `author` is `"user"` or `"agent"`.
+`authorName` is an optional free-form tag (e.g. `"explainer"`) naming the kind of agent that posted the comment; the UI renders it as `agent:<authorName>`.
 `status` is `"open"` or `"resolved"`.
 `parentId` is empty for root comments; set to a root comment's `id` for replies.
 The API always returns a flat array — clients group by `parentId`.

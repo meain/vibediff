@@ -152,6 +152,9 @@ func (s *Server) registerTools() {
 			mcp.Required(),
 			mcp.Description("Reply body. Markdown is allowed."),
 		),
+		mcp.WithString("author_name",
+			mcp.Description("Optional short tag identifying the kind of agent posting the reply (e.g. \"explainer\"). Rendered in the UI as \"agent:<author_name>\". Omit if there is no specific agent role to surface."),
+		),
 	)
 	s.mcp.AddTool(replyTool, s.handleReplyToComment)
 
@@ -220,6 +223,7 @@ func (s *Server) handleReplyToComment(ctx context.Context, req mcp.CallToolReque
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
+	authorName := req.GetString("author_name", "")
 
 	parent := s.store.GetByID(parentID)
 	if parent == nil {
@@ -227,16 +231,17 @@ func (s *Server) handleReplyToComment(ctx context.Context, req mcp.CallToolReque
 	}
 
 	reply := &review.Comment{
-		File:     parent.File,
-		Line:     parent.Line,
-		LineEnd:  parent.LineEnd,
-		Side:     parent.Side,
-		Content:  content,
-		Author:   review.AuthorAgent,
-		ParentID: parent.ID,
-		Status:   review.StatusOpen,
-		Revision: parent.Revision,
-		Commit:   parent.Commit,
+		File:       parent.File,
+		Line:       parent.Line,
+		LineEnd:    parent.LineEnd,
+		Side:       parent.Side,
+		Content:    content,
+		Author:     review.AuthorAgent,
+		AuthorName: authorName,
+		ParentID:   parent.ID,
+		Status:     review.StatusOpen,
+		Revision:   parent.Revision,
+		Commit:     parent.Commit,
 	}
 	s.store.AddComment(reply)
 	_ = s.store.SaveComments(reply.Directory)

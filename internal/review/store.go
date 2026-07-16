@@ -29,20 +29,24 @@ const (
 // original code even after the working copy drifts.
 // Directory scopes the comment to a specific project directory, enabling
 // multi-project support without separate server state.
+// AuthorName is an optional free-form tag, typically set by agent clients
+// to identify which kind of agent posted the comment (e.g. "explainer").
+// The UI renders it as "agent:<authorName>" alongside the author badge.
 type Comment struct {
-	ID        string    `json:"id"`
-	Directory string    `json:"directory,omitempty"`
-	File      string    `json:"file"`
-	Line      int       `json:"line,omitempty"`
-	LineEnd   int       `json:"lineEnd,omitempty"`
-	Side      string    `json:"side,omitempty"`
-	Content   string    `json:"content"`
-	Author    string    `json:"author"`
-	ParentID  string    `json:"parentId,omitempty"`
-	Status    string    `json:"status"`
-	Revision  string    `json:"revision,omitempty"`
-	Commit    string    `json:"commit,omitempty"`
-	CreatedAt time.Time `json:"createdAt"`
+	ID         string    `json:"id"`
+	Directory  string    `json:"directory,omitempty"`
+	File       string    `json:"file"`
+	Line       int       `json:"line,omitempty"`
+	LineEnd    int       `json:"lineEnd,omitempty"`
+	Side       string    `json:"side,omitempty"`
+	Content    string    `json:"content"`
+	Author     string    `json:"author"`
+	AuthorName string    `json:"authorName,omitempty"`
+	ParentID   string    `json:"parentId,omitempty"`
+	Status     string    `json:"status"`
+	Revision   string    `json:"revision,omitempty"`
+	Commit     string    `json:"commit,omitempty"`
+	CreatedAt  time.Time `json:"createdAt"`
 }
 
 // Subscriber receives a callback after a comment is added to the store.
