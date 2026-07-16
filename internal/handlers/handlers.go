@@ -258,14 +258,26 @@ func (h *Handler) GetComments(w http.ResponseWriter, r *http.Request) {
 	//   revision="" (absent)        → return all comments (backward compat)
 	//   revision="working-copy"     → comments with no revision tag
 	//   revision=<id>               → comments tagged with that revision
+	//
+	// A comment's revision may have been recorded as an explicit ID that
+	// happens to be the working copy (e.g. added via the API rather than
+	// through the UI's @ row, which always omits revision). Resolve the
+	// current working-copy ID so those comments still match "working-copy",
+	// and vice versa.
 	if revision != "" {
+		workingCopyID := ""
+		if dir != "" {
+			if id, err := h.gitService.WorkingCopyRevisionID(dir); err == nil {
+				workingCopyID = id
+			}
+		}
 		filtered := make([]*review.Comment, 0)
 		for _, c := range comments {
 			if revision == "working-copy" {
-				if c.Revision == "" {
+				if c.Revision == "" || (workingCopyID != "" && c.Revision == workingCopyID) {
 					filtered = append(filtered, c)
 				}
-			} else if c.Revision == revision {
+			} else if c.Revision == revision || (c.Revision == "" && workingCopyID != "" && revision == workingCopyID) {
 				filtered = append(filtered, c)
 			}
 		}

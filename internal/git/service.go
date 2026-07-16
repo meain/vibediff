@@ -878,6 +878,21 @@ func (s *Service) ResolveCommit(dir string, revisionID string) (string, error) {
 	return strings.TrimSpace(out), nil
 }
 
+// WorkingCopyRevisionID returns the revision identifier (as used in Revision.ID)
+// of the current working copy: the jj change ID of @ for jj repos, or the
+// commit SHA of HEAD for git repos. Used to recognize when a comment's
+// explicit revision ID refers to what is currently the working copy.
+func (s *Service) WorkingCopyRevisionID(dir string) (string, error) {
+	if s.getBackend(dir) == BackendJJ {
+		out, err := s.runJJCommand(dir, "log", "--no-graph", "-r", "@", "-T", "change_id", "--limit", "1")
+		if err != nil {
+			return "", fmt.Errorf("resolving jj working-copy change id: %w", err)
+		}
+		return strings.TrimSpace(out), nil
+	}
+	return s.ResolveCommit(dir, "")
+}
+
 // StatusRaw returns raw status output for change detection (used by watcher)
 func (s *Service) StatusRaw(dir string) (string, error) {
 	if s.getBackend(dir) == BackendJJ {
