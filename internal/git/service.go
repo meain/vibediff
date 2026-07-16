@@ -641,7 +641,7 @@ func parseGitDecorations(decorate string) []string {
 
 func (s *Service) getJJRevisions(dir string, limit int) ([]Revision, error) {
 	// diff.stat(1000) gives "N files changed, X insertions(+), Y deletions(-)"
-	template := `change_id ++ "\x00" ++ change_id.shortest(8) ++ "\x00" ++ description.first_line() ++ "\x00" ++ author.name() ++ "\x00" ++ author.timestamp() ++ "\x00" ++ bookmarks.join("|") ++ "\x00" ++ if(parents.len() > 0, parents.first().change_id(), "") ++ if(parents.len() > 1, "|" ++ parents.last().change_id(), "") ++ "\x00" ++ diff.stat(1000) ++ "\n"`
+	template := `change_id ++ "\x00" ++ change_id.shortest(8) ++ "\x00" ++ description.first_line() ++ "\x00" ++ author.name() ++ "\x00" ++ author.timestamp() ++ "\x00" ++ bookmarks.join("|") ++ "\x00" ++ parents.map(|p| p.change_id()).join("|") ++ "\x00" ++ diff.stat(1000) ++ "\n"`
 	output, err := s.runJJCommand(dir, "log", "--no-graph", "-r", fmt.Sprintf("ancestors(@, %d)", limit), "-T", template)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get jj log: %w", err)
