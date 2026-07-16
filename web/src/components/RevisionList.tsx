@@ -11,6 +11,21 @@ interface RevisionListProps {
   onSelectRevision: (revisionId: string | null) => void
   backend: VCSBackend
   reviewedRevisions?: Set<string>
+  commentCounts?: Map<string, number>
+}
+
+function CommentCountBadge({ count }: { count: number }): React.ReactElement {
+  return (
+    <span
+      className="flex items-center gap-0.5 text-fg-muted shrink-0"
+      title={`${String(count)} comment${count === 1 ? '' : 's'}`}
+    >
+      <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.076-4.076a1.526 1.526 0 011.037-.443 48.282 48.282 0 005.68-.494c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
+      </svg>
+      {count}
+    </span>
+  )
 }
 
 const COL_W = 12
@@ -120,6 +135,7 @@ function RevisionRow({
   onSelect,
   reviewedRevisions,
   backend,
+  commentCount,
 }: {
   rev: Revision
   graphRow: GraphRow
@@ -128,6 +144,7 @@ function RevisionRow({
   onSelect: () => void
   reviewedRevisions?: Set<string>
   backend: VCSBackend
+  commentCount: number
 }): React.ReactElement {
   const contentRef = useRef<HTMLDivElement>(null)
   const [rowHeight, setRowHeight] = useState(ROW_HEIGHT)
@@ -196,12 +213,15 @@ function RevisionRow({
               <CopyButton value={b} title={`Copy bookmark "${b}"`} />
             </span>
           ))}
-          {(rev.additions !== undefined || rev.deletions !== undefined) && (
-            <span className="ml-auto flex items-center gap-0.5 shrink-0 font-mono">
-              <span style={{ color: 'var(--color-diff-add-fg, #16a34a)' }}>+{rev.additions ?? 0}</span>
-              <span style={{ color: 'var(--color-diff-del-fg, #dc2626)' }}>-{rev.deletions ?? 0}</span>
-            </span>
-          )}
+          <span className="ml-auto flex items-center gap-1.5 shrink-0">
+            {commentCount > 0 && <CommentCountBadge count={commentCount} />}
+            {(rev.additions !== undefined || rev.deletions !== undefined) && (
+              <span className="flex items-center gap-0.5 font-mono">
+                <span style={{ color: 'var(--color-diff-add-fg, #16a34a)' }}>+{rev.additions ?? 0}</span>
+                <span style={{ color: 'var(--color-diff-del-fg, #dc2626)' }}>-{rev.deletions ?? 0}</span>
+              </span>
+            )}
+          </span>
         </div>
       </div>
     </div>
@@ -215,6 +235,7 @@ export default function RevisionList({
   onSelectRevision,
   backend,
   reviewedRevisions,
+  commentCounts,
 }: RevisionListProps): React.ReactElement {
   const [filter, setFilter] = useState('')
 
@@ -269,6 +290,11 @@ export default function RevisionList({
               <span className="text-[10px] text-success shrink-0" title="All files reviewed">✓</span>
             )}
             <span className="font-medium">Working copy changes</span>
+            {!!commentCounts?.get('working-copy') && (
+              <span className="ml-auto">
+                <CommentCountBadge count={commentCounts.get('working-copy') ?? 0} />
+              </span>
+            )}
           </div>
         </div>
       )}
@@ -281,6 +307,7 @@ export default function RevisionList({
         const isSelected = rev.isWorkingCopy && backend === 'jj'
           ? selectedRevision === null
           : selectedRevision === rev.id
+        const countKey = rev.isWorkingCopy && backend === 'jj' ? 'working-copy' : rev.id
 
         return (
           <RevisionRow
@@ -298,6 +325,7 @@ export default function RevisionList({
             }}
             reviewedRevisions={reviewedRevisions}
             backend={backend}
+            commentCount={commentCounts?.get(countKey) ?? 0}
           />
         )
       })}

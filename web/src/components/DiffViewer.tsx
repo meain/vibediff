@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import type { DiffType, ViewMode, FileDiff as FileDiffType } from '../types/diff'
 import { useDiff } from '../hooks/useDiff'
 import { useComments } from '../hooks/useComments'
+import { useAllComments } from '../hooks/useAllComments'
 import { useLocalStorage } from '../hooks/useLocalStorage'
 import { useWebSocketUpdates } from '../contexts/WebSocketContext'
 import { useDirectory } from '../hooks/useDirectory'
@@ -56,6 +57,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
   const { reviewedFiles, toggleReviewed, clearReviewed, validateReviewed } = useReviewedFiles(currentDirectory, selectedRevision)
   const { reviewedRevisions, markRevisionReviewed, unmarkRevisionReviewed } = useReviewedRevisions(currentDirectory)
   const { revisions, loading: revisionsLoading, refetch: refetchRevisions } = useRevisions(currentDirectory)
+  const commentCountsByRevision = useAllComments(currentDirectory)
 
   // Top-level (non-reply) comment counts per file, for the file browser badges.
   const commentCountsByFile = useMemo(() => {
@@ -571,6 +573,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
                   }}
                   backend={backend}
                   reviewedRevisions={reviewedRevisions}
+                  commentCounts={commentCountsByRevision}
                 />
               </div>
             </Panel>
