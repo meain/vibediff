@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { Revision } from '../types/diff'
 import CopyButton from './CopyButton'
 
@@ -43,16 +44,47 @@ function formatRelativeTimestamp(ts: string): string {
 }
 
 export default function CommitSummary({ revision, filesChanged, additions, deletions }: CommitSummaryProps): React.ReactElement {
+  const [expanded, setExpanded] = useState(false)
   const absolute = formatAbsoluteTimestamp(revision.timestamp)
   const relative = formatRelativeTimestamp(revision.timestamp)
+
+  const newlineIdx = revision.description.indexOf('\n')
+  const title = newlineIdx === -1 ? revision.description : revision.description.slice(0, newlineIdx)
+  const body = newlineIdx === -1 ? '' : revision.description.slice(newlineIdx + 1).replace(/^\n+/, '')
 
   return (
     <div className="mx-3 mt-3 mb-3 border border-edge rounded bg-surface-raised">
       <div className="px-4 py-3 flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-semibold text-fg select-text break-words">
-            {revision.description || '(no description)'}
+          <div className="flex items-center gap-1.5">
+            {body && (
+              <button
+                type="button"
+                onClick={() => { setExpanded(e => !e); }}
+                className="shrink-0 text-fg-subtle hover:text-fg-muted"
+                title={expanded ? 'Hide description' : 'Show full description'}
+              >
+                <svg
+                  className={`w-3 h-3 transition-transform ${expanded ? 'rotate-90' : ''}`}
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                </svg>
+              </button>
+            )}
+            <div className="text-sm font-semibold text-fg select-text break-words">
+              {title || '(no description)'}
+            </div>
           </div>
+
+          {body && expanded && (
+            <div className="mt-1 text-xs text-fg-muted select-text break-words whitespace-pre-wrap pl-[18px]">
+              {body}
+            </div>
+          )}
 
           <div className="mt-1.5 flex items-center flex-wrap gap-x-3 gap-y-1 text-xs text-fg-muted">
             <span className="select-text">

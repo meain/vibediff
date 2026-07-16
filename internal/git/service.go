@@ -572,10 +572,10 @@ func parseDiffStat(s string) (additions, deletions int) {
 }
 
 func (s *Service) getGitRevisions(dir string, limit int) ([]Revision, error) {
-	// \x01 (SOH) prefixes each commit header so blocks can be split cleanly
-	// even when --shortstat adds extra lines after each entry.
+	// \x01 (SOH) prefixes each commit so blocks can be split cleanly even
+	// though %B (full multi-line message) and --shortstat both span multiple lines.
 	output, err := s.runGitCommand(dir, "log",
-		`--format=tformat:%x01%H%x1F%h%x1F%s%x1F%an%x1F%aI%x1F%D%x1F%P`,
+		`--format=tformat:%x01%H%x1F%h%x1F%s%x1F%an%x1F%aI%x1F%D%x1F%P%x1F%B`,
 		"--shortstat",
 		fmt.Sprintf("-n%d", limit))
 	if err != nil {
@@ -588,12 +588,11 @@ func (s *Service) getGitRevisions(dir string, limit int) ([]Revision, error) {
 
 	var revisions []Revision
 	for block := range strings.SplitSeq(output, "\x01") {
-		block = strings.TrimSpace(block)
+		block = strings.TrimRight(block, "\n")
 		if block == "" {
 			continue
 		}
-		lines := strings.Split(block, "\n")
-		parts := strings.SplitN(lines[0], "\x1f", 7)
+		parts := strings.SplitN(block, "\x1f", 8)
 		if len(parts) < 5 {
 			continue
 		}
@@ -610,16 +609,32 @@ func (s *Service) getGitRevisions(dir string, limit int) ([]Revision, error) {
 		if len(parts) >= 7 && parts[6] != "" {
 			rev.Parents = strings.Fields(parts[6])
 		}
-		for _, line := range lines[1:] {
-			if strings.Contains(line, "changed") {
-				rev.Additions, rev.Deletions = parseDiffStat(line)
-				break
-			}
+		if len(parts) >= 8 {
+			rev.Description, rev.Additions, rev.Deletions = extractGitBody(parts[7])
 		}
 		revisions = append(revisions, rev)
 	}
 
 	return revisions, nil
+}
+
+// extractGitBody separates the full commit message (%B) from the trailing
+// --shortstat summary line git appends after it, returning the trimmed
+// message and the parsed insertion/deletion counts.
+func extractGitBody(raw string) (description string, additions, deletions int) {
+	lines := strings.Split(raw, "\n")
+	end := len(lines)
+	for end > 0 && strings.TrimSpace(lines[end-1]) == "" {
+		end--
+	}
+	if end > 0 && strings.Contains(lines[end-1], "changed") {
+		additions, deletions = parseDiffStat(lines[end-1])
+		end--
+		for end > 0 && strings.TrimSpace(lines[end-1]) == "" {
+			end--
+		}
+	}
+	return strings.Join(lines[:end], "\n"), additions, deletions
 }
 
 // parseGitDecorations extracts branch/tag names from git %D decoration string.
@@ -640,8 +655,11 @@ func parseGitDecorations(decorate string) []string {
 }
 
 func (s *Service) getJJRevisions(dir string, limit int) ([]Revision, error) {
+	// \x01 (SOH) prefixes each commit so blocks can be split cleanly even
+	// though the full multi-line description and diff.stat() both span
+	// multiple lines (and may contain blank lines themselves).
 	// diff.stat(1000) gives "N files changed, X insertions(+), Y deletions(-)"
-	template := `change_id ++ "\x00" ++ change_id.shortest(8) ++ "\x00" ++ description.first_line() ++ "\x00" ++ author.name() ++ "\x00" ++ author.timestamp() ++ "\x00" ++ bookmarks.join("|") ++ "\x00" ++ parents.map(|p| p.change_id()).join("|") ++ "\x00" ++ diff.stat(1000) ++ "\n"`
+	template := `"\x01" ++ change_id ++ "\x00" ++ change_id.shortest(8) ++ "\x00" ++ description ++ "\x00" ++ author.name() ++ "\x00" ++ author.timestamp() ++ "\x00" ++ bookmarks.join("|") ++ "\x00" ++ parents.map(|p| p.change_id()).join("|") ++ "\x00" ++ diff.stat(1000) ++ "\n"`
 	output, err := s.runJJCommand(dir, "log", "--no-graph", "-r", fmt.Sprintf("ancestors(@, %d)", limit), "-T", template)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get jj log: %w", err)
@@ -651,12 +669,9 @@ func (s *Service) getJJRevisions(dir string, limit int) ([]Revision, error) {
 		return []Revision{}, nil
 	}
 
-	// diff.stat() emits one line per file plus a summary line, so commits are
-	// separated by blank lines (\n\n). Split on that to keep each commit's full
-	// stat block together before splitting on \x00 for fields.
 	var revisions []Revision
-	for _, block := range strings.Split(strings.TrimSpace(output), "\n\n") {
-		block = strings.TrimSpace(block)
+	for block := range strings.SplitSeq(output, "\x01") {
+		block = strings.TrimRight(block, "\n")
 		if block == "" {
 			continue
 		}
@@ -667,7 +682,7 @@ func (s *Service) getJJRevisions(dir string, limit int) ([]Revision, error) {
 		rev := Revision{
 			ID:          parts[0],
 			ShortID:     parts[1],
-			Description: parts[2],
+			Description: strings.TrimRight(parts[2], "\n"),
 			Author:      parts[3],
 			Timestamp:   parts[4],
 		}

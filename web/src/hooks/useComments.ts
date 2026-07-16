@@ -233,7 +233,7 @@ export function useComments(currentDirectory?: string, selectedRevision?: string
       return ids.map(id => {
         const r = revMap.get(id)
         if (r) {
-          const desc = r.description || '(no description)'
+          const desc = r.description.split('\n', 1)[0] || '(no description)'
           return `> **${r.shortId}** — ${desc}  \n> ${r.author} · ${new Date(r.timestamp).toLocaleDateString()}`
         }
         // Fallback: just show the short commit SHA if we have it
@@ -274,7 +274,7 @@ export function useComments(currentDirectory?: string, selectedRevision?: string
       if (ids.length === 0) return ''
       return ids.map(id => {
         const r = revMap.get(id)
-        if (r) return `> **${r.shortId}** — ${r.description || '(no description)'}  \n> ${r.author} · ${new Date(r.timestamp).toLocaleDateString()}`
+        if (r) return `> **${r.shortId}** — ${r.description.split('\n', 1)[0] || '(no description)'}  \n> ${r.author} · ${new Date(r.timestamp).toLocaleDateString()}`
         const commit = comments.find(c => c.revision === id)?.commit
         return commit ? `> **${commit.slice(0, 7)}**` : `> ${id.slice(0, 8)}`
       }).join('\n')

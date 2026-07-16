@@ -191,7 +191,7 @@ function RevisionRow({
             <span className="text-[10px] text-success shrink-0" title="All files reviewed">✓</span>
           )}
           <span className="truncate">
-            {rev.description || '(no description)'}
+            {rev.description.split('\n', 1)[0] || '(no description)'}
           </span>
           {rev.isWorkingCopy && (
             <span className="shrink-0 text-[10px] px-1 py-0.5 rounded bg-accent-muted text-accent-emphasis">
