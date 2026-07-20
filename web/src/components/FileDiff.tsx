@@ -35,12 +35,13 @@ interface GapRenderData {
   unknownCount?: boolean
 }
 
-function GapRow({ gap, gapData, isLoading, onExpandDown, onExpandUp, onCollapse, colSpan }: {
+function GapRow({ gap, gapData, isLoading, onExpandDown, onExpandUp, onExpandAll, onCollapse, colSpan }: {
   gap: GapInfo
   gapData: GapRenderData
   isLoading: boolean
   onExpandDown: () => void
   onExpandUp: () => void
+  onExpandAll: () => void
   onCollapse: () => void
   colSpan: number
 }): React.ReactElement | null {
@@ -70,6 +71,16 @@ function GapRow({ gap, gapData, isLoading, onExpandDown, onExpandUp, onCollapse,
             <span className="text-fg-muted">
               {String(gapData.remainingHidden)} lines hidden
             </span>
+          )}
+
+          {gapData.remainingHidden > 0 && (
+            <button
+              onClick={onExpandAll}
+              className="text-accent-emphasis hover:underline cursor-pointer bg-transparent border-none"
+              disabled={isLoading}
+            >
+              ⇕ Expand all
+            </button>
           )}
 
           {gapData.remainingHidden > 0 && showExpandUp && (
@@ -155,7 +166,7 @@ function FileDiff({
   const [fullDiff, setFullDiff] = useState<FileDiffType | null>(null)
   const [isLoadingFull, setIsLoadingFull] = useState(false)
   const [gapExpansions, setGapExpansions] = useState<Record<string, GapExpansion>>({})
-  const pendingExpandRef = useRef<{ gapKey: string; direction: 'up' | 'down' } | null>(null)
+  const pendingExpandRef = useRef<{ gapKey: string; direction: 'up' | 'down' | 'all' } | null>(null)
 
   useEffect(() => {
     setFullDiff(null)
@@ -270,13 +281,24 @@ function FileDiff({
     })
   }, [])
 
+  const applyExpansionAll = useCallback((gapKey: string) => {
+    setGapExpansions(prev => ({
+      ...prev,
+      [gapKey]: { down: Infinity, up: 0 }
+    }))
+  }, [])
+
   useEffect(() => {
     if (fullDiff && pendingExpandRef.current) {
       const { gapKey, direction } = pendingExpandRef.current
       pendingExpandRef.current = null
-      applyExpansion(gapKey, direction)
+      if (direction === 'all') {
+        applyExpansionAll(gapKey)
+      } else {
+        applyExpansion(gapKey, direction)
+      }
     }
-  }, [fullDiff, applyExpansion])
+  }, [fullDiff, applyExpansion, applyExpansionAll])
 
   const handleExpand = useCallback((gapKey: string, direction: 'up' | 'down') => {
     if (fullDiff) {
@@ -286,6 +308,15 @@ function FileDiff({
       void fetchFullDiff()
     }
   }, [fullDiff, applyExpansion, fetchFullDiff])
+
+  const handleExpandAll = useCallback((gapKey: string) => {
+    if (fullDiff) {
+      applyExpansionAll(gapKey)
+    } else {
+      pendingExpandRef.current = { gapKey, direction: 'all' }
+      void fetchFullDiff()
+    }
+  }, [fullDiff, applyExpansionAll, fetchFullDiff])
 
   const handleCollapse = useCallback((gapKey: string) => {
     setGapExpansions(prev => {
@@ -304,6 +335,13 @@ function FileDiff({
     }
     return max
   }, [fullLineMap])
+
+  const lineNumberOf = useCallback((line: DiffLineType): number => {
+    const isDel = line.type === 'delete' || line.type === 'deleted'
+    return isDel
+      ? -(line.oldLineNumber ?? line.oldNumber ?? 0)
+      : (line.newLineNumber ?? line.newNumber ?? 0)
+  }, [])
 
   const getGapRenderData = useCallback((gap: GapInfo): GapRenderData => {
     const expansion = gapExpansions[gap.key] ?? { down: 0, up: 0 }
@@ -346,15 +384,27 @@ function FileDiff({
     return { topLines, bottomLines, remainingHidden, isExpanded }
   }, [gapExpansions, fullLineMap, fullDiffMaxLine])
 
-  const lineOrder = useMemo(() =>
-    file.hunks.flatMap(hunk =>
-      hunk.lines.map(line => {
-        const isDel = line.type === 'delete' || line.type === 'deleted'
-        return isDel
-          ? -(line.oldLineNumber ?? line.oldNumber ?? 0)
-          : (line.newLineNumber ?? line.newNumber ?? 0)
-      })
-    ), [file.hunks])
+  const getGapBeforeHunk = useCallback((hunkIndex: number): GapInfo | undefined => {
+    return hunkIndex === 0
+      ? getGapAfterHunk(-1)
+      : getGapAfterHunk(hunkIndex - 1)
+  }, [getGapAfterHunk])
+
+  const lineOrder = useMemo(() => {
+    const order: number[] = []
+    const pushGap = (gap: GapInfo | undefined): void => {
+      if (!gap) return
+      const gapData = getGapRenderData(gap)
+      for (const line of gapData.topLines) order.push(lineNumberOf(line))
+      for (const line of gapData.bottomLines) order.push(lineNumberOf(line))
+    }
+    file.hunks.forEach((hunk, hunkIndex) => {
+      pushGap(getGapBeforeHunk(hunkIndex))
+      for (const line of hunk.lines) order.push(lineNumberOf(line))
+    })
+    pushGap(getGapAfterLastHunk())
+    return order
+  }, [file.hunks, getGapBeforeHunk, getGapAfterLastHunk, getGapRenderData, lineNumberOf])
 
   const commentRangeLines = useMemo(() =>
     getCommentRangeLines ? getCommentRangeLines(file.path, lineOrder) : new Set<number>()
@@ -369,50 +419,74 @@ function FileDiff({
     onSelect: handleSelect
   })
 
-  const noop = useCallback(() => { /* expanded context line */ }, [])
-
-  const renderExpandedLinesUnified = useCallback((lines: DiffLineType[], keyPrefix: string): React.ReactNode[] => {
-    return lines.map((line, i) => (
-      <DiffLine
-        key={`${keyPrefix}-${String(i)}`}
-        line={line}
-        viewMode="unified"
-        onMouseEnter={noop}
-        onMouseLeave={noop}
-        filename={file.path}
-        wrapLines={wrapLines}
-      />
-    ))
-  }, [file.path, wrapLines, noop])
-
-  const renderExpandedLinesSplit = useCallback((lines: DiffLineType[], keyPrefix: string): React.ReactNode[] => {
-    return lines.map((line, i) => (
-      <tr key={`${keyPrefix}-${String(i)}`} className="group">
+  const renderUnifiedLine = useCallback((line: DiffLineType, key: string): React.ReactElement => {
+    const lineNumber = lineNumberOf(line)
+    const comments = getCommentsForLine(file.path, lineNumber)
+    return (
+      <React.Fragment key={key}>
         <DiffLine
           line={line}
-          viewMode="split"
-          onMouseEnter={noop}
-          onMouseLeave={noop}
+          viewMode="unified"
+          onMouseEnter={() => { handleDragEnter(lineNumber) }}
+          onMouseLeave={() => { /* hover effect */ }}
+          onDragStart={() => { handleDragStart(lineNumber) }}
+          isInSelection={selectedLines.has(lineNumber)}
+          isInCommentRange={commentRangeLines.has(lineNumber)}
           filename={file.path}
           wrapLines={wrapLines}
         />
+        {comments.length > 0 && (
+          <tr>
+            <td colSpan={3} className="p-0">
+              <CommentDisplay
+                comments={comments}
+                onDelete={(id) => { void onDeleteComment(id); }}
+                onUpdate={onUpdateComment}
+                onAddReply={onAddReply}
+                onResolve={onResolveComment ? (id) => { void onResolveComment(id); } : undefined}
+                onReopen={onReopenComment ? (id) => { void onReopenComment(id); } : undefined}
+              />
+            </td>
+          </tr>
+        )}
+        {activeComment && lineNumber === activeComment.lineEnd && onSubmitComment && onCancelComment && (
+          <InlineCommentForm
+            line={activeComment.line}
+            lineEnd={activeComment.lineEnd}
+            onSubmit={onSubmitComment}
+            onCancel={onCancelComment}
+            colSpan={3}
+          />
+        )}
+      </React.Fragment>
+    )
+  }, [file.path, getCommentsForLine, handleDragEnter, handleDragStart, selectedLines, commentRangeLines, wrapLines, onDeleteComment, onUpdateComment, onAddReply, onResolveComment, onReopenComment, activeComment, onSubmitComment, onCancelComment, lineNumberOf])
+
+  const renderExpandedLinesUnified = useCallback((lines: DiffLineType[], keyPrefix: string): React.ReactElement[] => {
+    return lines.map((line, i) => renderUnifiedLine(line, `${keyPrefix}-${String(i)}`))
+  }, [renderUnifiedLine])
+
+  const splitLineRenderer = useCallback((line: DiffLineType): SplitViewLineResult => {
+    const lineNumber = lineNumberOf(line)
+    const comments = getCommentsForLine(file.path, lineNumber)
+    return {
+      line: (
         <DiffLine
           line={line}
           viewMode="split"
-          onMouseEnter={noop}
-          onMouseLeave={noop}
+          onMouseEnter={() => { handleDragEnter(lineNumber); }}
+          onMouseLeave={() => { /* hover effect */ }}
+          onDragStart={() => { handleDragStart(lineNumber); }}
+          isInSelection={selectedLines.has(lineNumber)}
+          isInCommentRange={commentRangeLines.has(lineNumber)}
           filename={file.path}
           wrapLines={wrapLines}
         />
-      </tr>
-    ))
-  }, [file.path, wrapLines, noop])
-
-  const getGapBeforeHunk = useCallback((hunkIndex: number): GapInfo | undefined => {
-    return hunkIndex === 0
-      ? getGapAfterHunk(-1)
-      : getGapAfterHunk(hunkIndex - 1)
-  }, [getGapAfterHunk])
+      ),
+      comments,
+      lineNumber
+    }
+  }, [file.path, getCommentsForLine, handleDragEnter, handleDragStart, selectedLines, commentRangeLines, wrapLines, lineNumberOf])
 
   const handleHeaderToggle = useCallback((e: React.MouseEvent): void => {
     const wasCollapsed = collapsed
@@ -423,9 +497,16 @@ function FileDiff({
     }
   }, [collapsed, onToggleCollapse])
 
-  const renderGap = useCallback((gap: GapInfo, colSpan: number, isSplit: boolean): React.ReactNode => {
+  const renderGap = useCallback((gap: GapInfo, colSpan: number, isSplit: boolean): React.ReactElement => {
     const gapData = getGapRenderData(gap)
-    const renderLines = isSplit ? renderExpandedLinesSplit : renderExpandedLinesUnified
+    const inlineComment = activeComment && onSubmitComment && onCancelComment
+      ? { activeComment, onSubmitComment, onCancelComment }
+      : null
+
+    const renderLines = (lines: DiffLineType[], keyPrefix: string): React.ReactNode =>
+      isSplit
+        ? renderSplitView(lines, splitLineRenderer, onDeleteComment, inlineComment, onResolveComment, onReopenComment, onUpdateComment, onAddReply, `${keyPrefix}-`)
+        : renderExpandedLinesUnified(lines, keyPrefix)
 
     return (
       <React.Fragment key={`gap-${gap.key}`}>
@@ -436,13 +517,14 @@ function FileDiff({
           isLoading={isLoadingFull}
           onExpandDown={() => { handleExpand(gap.key, 'down') }}
           onExpandUp={() => { handleExpand(gap.key, 'up') }}
+          onExpandAll={() => { handleExpandAll(gap.key) }}
           onCollapse={() => { handleCollapse(gap.key) }}
           colSpan={colSpan}
         />
         {gapData.bottomLines.length > 0 && renderLines(gapData.bottomLines, `gap-${gap.key}-bottom`)}
       </React.Fragment>
     )
-  }, [getGapRenderData, renderExpandedLinesUnified, renderExpandedLinesSplit, isLoadingFull, handleExpand, handleCollapse])
+  }, [getGapRenderData, renderExpandedLinesUnified, splitLineRenderer, onDeleteComment, onUpdateComment, onAddReply, onResolveComment, onReopenComment, activeComment, onSubmitComment, onCancelComment, isLoadingFull, handleExpand, handleExpandAll, handleCollapse])
 
   return (
     <div id={`file-${file.path.replace(/\//g, '-')}`} className="mx-3 mb-3 first:mt-3">
@@ -556,51 +638,7 @@ function FileDiff({
                     </tr>
 
                     {/* Diff Lines */}
-                    {hunk.lines.map((line, lineIndex) => {
-                      const lineNumber = (line.type === 'delete' || line.type === 'deleted')
-                        ? -(line.oldLineNumber ?? line.oldNumber ?? 0)
-                        : (line.newLineNumber ?? line.newNumber ?? 0)
-                      const comments = getCommentsForLine(file.path, lineNumber)
-
-                      return (
-                        <React.Fragment key={`${String(hunkIndex)}-${String(lineIndex)}`}>
-                          <DiffLine
-                            line={line}
-                            viewMode="unified"
-                            onMouseEnter={() => { handleDragEnter(lineNumber); }}
-                            onMouseLeave={() => { /* hover effect */ }}
-                            onDragStart={() => { handleDragStart(lineNumber); }}
-                            isInSelection={selectedLines.has(lineNumber)}
-                            isInCommentRange={commentRangeLines.has(lineNumber)}
-                            filename={file.path}
-                            wrapLines={wrapLines}
-                          />
-                          {comments.length > 0 && (
-                            <tr>
-                              <td colSpan={3} className="p-0">
-                                <CommentDisplay
-                                  comments={comments}
-                                  onDelete={(id) => { void onDeleteComment(id); }}
-                                  onUpdate={onUpdateComment}
-                                  onAddReply={onAddReply}
-                                  onResolve={onResolveComment ? (id) => { void onResolveComment(id); } : undefined}
-                                  onReopen={onReopenComment ? (id) => { void onReopenComment(id); } : undefined}
-                                />
-                              </td>
-                            </tr>
-                          )}
-                          {activeComment && lineNumber === activeComment.lineEnd && onSubmitComment && onCancelComment && (
-                            <InlineCommentForm
-                              line={activeComment.line}
-                              lineEnd={activeComment.lineEnd}
-                              onSubmit={onSubmitComment}
-                              onCancel={onCancelComment}
-                              colSpan={3}
-                            />
-                          )}
-                        </React.Fragment>
-                      )
-                    })}
+                    {hunk.lines.map((line, lineIndex) => renderUnifiedLine(line, `${String(hunkIndex)}-${String(lineIndex)}`))}
                   </React.Fragment>
                   )
                 })}
@@ -627,31 +665,7 @@ function FileDiff({
                     </tr>
 
                     {/* Split View Lines */}
-                    {renderSplitView(hunk.lines, (line, index) => {
-                      const lineNumber = (line.type === 'delete' || line.type === 'deleted')
-                        ? -(line.oldLineNumber ?? line.oldNumber ?? 0)
-                        : (line.newLineNumber ?? line.newNumber ?? 0)
-                      const comments = getCommentsForLine(file.path, lineNumber)
-
-                      return {
-                        line: (
-                          <DiffLine
-                            key={`${String(hunkIndex)}-${String(index)}`}
-                            line={line}
-                            viewMode="split"
-                            onMouseEnter={() => { handleDragEnter(lineNumber); }}
-                            onMouseLeave={() => { /* hover effect */ }}
-                            onDragStart={() => { handleDragStart(lineNumber); }}
-                            isInSelection={selectedLines.has(lineNumber)}
-                            isInCommentRange={commentRangeLines.has(lineNumber)}
-                            filename={file.path}
-                            wrapLines={wrapLines}
-                          />
-                        ),
-                        comments,
-                        lineNumber
-                      }
-                    }, onDeleteComment, activeComment && onSubmitComment && onCancelComment ? { activeComment, onSubmitComment, onCancelComment } : null, onResolveComment, onReopenComment, onUpdateComment, onAddReply)}
+                    {renderSplitView(hunk.lines, splitLineRenderer, onDeleteComment, activeComment && onSubmitComment && onCancelComment ? { activeComment, onSubmitComment, onCancelComment } : null, onResolveComment, onReopenComment, onUpdateComment, onAddReply, `hunk-${String(hunkIndex)}-`)}
                   </React.Fragment>
                   )
                 })}
@@ -685,6 +699,7 @@ function renderSplitView(
   onReopenComment?: (id: string) => Promise<void>,
   onUpdateComment?: (id: string, content: string) => Promise<void>,
   onAddReply?: (parentComment: Comment, content: string) => Promise<void>,
+  keyPrefix = '',
 ): React.ReactNode[] {
   const resolveCb = onResolveComment ? (id: string) => { void onResolveComment(id); } : undefined
   const reopenCb = onReopenComment ? (id: string) => { void onReopenComment(id); } : undefined
@@ -712,14 +727,14 @@ function renderSplitView(
     if (line.type === 'normal' || line.type === 'context') {
       const result = renderLine(line, i)
       rows.push(
-        <tr key={i} className="group">
+        <tr key={`${keyPrefix}${String(i)}`} className="group">
           {result.line}
           {result.line}
         </tr>
       )
       if (result.comments.length > 0) {
         rows.push(
-          <tr key={`${String(i)}-comment`}>
+          <tr key={`${keyPrefix}${String(i)}-comment`}>
             <td colSpan={4} className="p-0">
               <CommentDisplay
                 comments={result.comments}
@@ -733,7 +748,7 @@ function renderSplitView(
           </tr>
         )
       }
-      maybeRenderInlineForm(result.lineNumber, String(i))
+      maybeRenderInlineForm(result.lineNumber, `${keyPrefix}${String(i)}`)
       i++
     } else if (line.type === 'delete' || line.type === 'deleted') {
       const nextLine = i + 1 < lines.length ? lines[i + 1] : undefined
@@ -741,14 +756,14 @@ function renderSplitView(
         const deleteResult = renderLine(line, i)
         const addResult = renderLine(nextLine, i + 1)
         rows.push(
-          <tr key={i} className="group">
+          <tr key={`${keyPrefix}${String(i)}`} className="group">
             {deleteResult.line}
             {addResult.line}
           </tr>
         )
         if (deleteResult.comments.length > 0 || addResult.comments.length > 0) {
           rows.push(
-            <tr key={`${String(i)}-comment`}>
+            <tr key={`${keyPrefix}${String(i)}-comment`}>
               <td colSpan={2} className="p-0">
                 {deleteResult.comments.length > 0 && (
                   <CommentDisplay
@@ -776,20 +791,20 @@ function renderSplitView(
             </tr>
           )
         }
-        maybeRenderInlineForm(deleteResult.lineNumber, String(i))
-        maybeRenderInlineForm(addResult.lineNumber, `${String(i)}-add`)
+        maybeRenderInlineForm(deleteResult.lineNumber, `${keyPrefix}${String(i)}`)
+        maybeRenderInlineForm(addResult.lineNumber, `${keyPrefix}${String(i)}-add`)
         i += 2
       } else {
         const result = renderLine(line, i)
         rows.push(
-          <tr key={i} className="group">
+          <tr key={`${keyPrefix}${String(i)}`} className="group">
             {result.line}
             <td colSpan={2} className="bg-surface-raised"></td>
           </tr>
         )
         if (result.comments.length > 0) {
           rows.push(
-            <tr key={`${String(i)}-comment`}>
+            <tr key={`${keyPrefix}${String(i)}-comment`}>
               <td colSpan={2} className="p-0">
                 <CommentDisplay
                   comments={result.comments}
@@ -804,20 +819,20 @@ function renderSplitView(
             </tr>
           )
         }
-        maybeRenderInlineForm(result.lineNumber, String(i))
+        maybeRenderInlineForm(result.lineNumber, `${keyPrefix}${String(i)}`)
         i++
       }
     } else {
       const result = renderLine(line, i)
       rows.push(
-        <tr key={i} className="group">
+        <tr key={`${keyPrefix}${String(i)}`} className="group">
           <td colSpan={2} className="bg-surface-raised"></td>
           {result.line}
         </tr>
       )
       if (result.comments.length > 0) {
         rows.push(
-          <tr key={`${String(i)}-comment`}>
+          <tr key={`${keyPrefix}${String(i)}-comment`}>
             <td colSpan={2} className="bg-surface-raised"></td>
             <td colSpan={2} className="p-0">
               <CommentDisplay
@@ -832,7 +847,7 @@ function renderSplitView(
           </tr>
         )
       }
-      maybeRenderInlineForm(result.lineNumber, String(i))
+      maybeRenderInlineForm(result.lineNumber, `${keyPrefix}${String(i)}`)
       i++
     }
   }
