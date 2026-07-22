@@ -9,7 +9,16 @@ import { useDirectory } from '../hooks/useDirectory'
 import { useReviewedFiles } from '../hooks/useReviewedFiles'
 import { useReviewedRevisions } from '../hooks/useReviewedRevisions'
 import { useRevisions } from '../hooks/useRevisions'
-import { getButtonClassName } from '../utils/buttonStyles'
+import { getButtonClassName, getIconButtonClassName } from '../utils/buttonStyles'
+import {
+  ListBulletIcon,
+  CheckCircleIcon,
+  ClockIcon,
+  ClipboardDocumentIcon,
+  TrashIcon,
+  ChevronDoubleUpIcon,
+  ChevronDoubleDownIcon,
+} from '@heroicons/react/24/outline'
 import { Group, Panel, Separator } from 'react-resizable-panels'
 import FileList from './FileList'
 import FileDiff from './FileDiff'
@@ -55,6 +64,25 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
   const { lastUpdate, lastUpdateDir } = useWebSocketUpdates()
   const { comments, addComment, updateComment, deleteComment, resolveComment, reopenComment, getCommentsForLine, getCommentRangeLines, formatCommentsForExport, formatPendingCommentsForExport, clearComments, fetchError, clearFetchError } = useComments(currentDirectory, selectedRevision)
   const { reviewedFiles, toggleReviewed, clearReviewed, validateReviewed } = useReviewedFiles(currentDirectory, selectedRevision)
+  const totalThreads = comments.filter(c => !c.parentId).length
+  const pendingThreads = comments.filter(c => !c.parentId && c.status === 'open').length
+  const commentCountsByAuthor = useMemo(() => {
+    let user = 0
+    const agents = new Map<string, number>()
+    for (const c of comments) {
+      if (c.author !== 'agent') {
+        user += 1
+        continue
+      }
+      const label = c.authorName ?? 'Agent'
+      agents.set(label, (agents.get(label) ?? 0) + 1)
+    }
+    return { user, agents }
+  }, [comments])
+  const allFilesCollapsed = collapsedFiles.size === data?.files.length
+  let collapseAllTitle = 'Collapse all'
+  if (displayMode === 'single') collapseAllTitle = 'Available in All Files mode'
+  else if (allFilesCollapsed) collapseAllTitle = 'Expand all'
   const { reviewedRevisions, markRevisionReviewed, unmarkRevisionReviewed } = useReviewedRevisions(currentDirectory)
   const { revisions, loading: revisionsLoading, refetch: refetchRevisions } = useRevisions(currentDirectory)
   const commentCountsByRevision = useAllComments(currentDirectory)
@@ -366,25 +394,11 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
               <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-surface-inset text-fg-muted border border-edge uppercase tracking-wide">
                 {backend}
               </span>
-              <DirectorySwitcher
-                currentDirectory={currentDirectory}
-                directories={directories}
-                homeDir={homeDir}
-                onSelectDirectory={(dir) => {
-                  setCurrentDirectory(dir)
-                  setSelectedRevision(null)
-                  setSelectedFile(null)
-                }}
-                onAddDirectory={handleDirectoryChange}
-                onRemoveDirectory={removeDirectory}
-                onReorderDirectories={reorderDirectories}
-                onValidate={validateDirectory}
-              />
               {isRefreshing && (
                 <span className="text-sm text-fg-subtle animate-pulse">Updating...</span>
               )}
             </div>
-            <div className="flex items-center gap-2 flex-nowrap whitespace-nowrap">
+            <div className="flex items-end gap-2 flex-nowrap whitespace-nowrap">
             {/* Diff Type Selector - only for git working copy (jj has no staging area) */}
             {selectedRevision === null && backend === 'git' && (
               <>
@@ -393,13 +407,16 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
                     <button
                       key={type}
                       onClick={() => { setDiffType(type); }}
-                      className={(() => {
+                      className={`${(() => {
                         const isActive = diffType === type
                         if (index === 0) return getButtonClassName(isActive, 'left')
                         if (index === 2) return getButtonClassName(isActive, 'right')
                         return getButtonClassName(isActive, 'middle')
-                      })()}
+                      })()} inline-flex items-center gap-1.5`}
                     >
+                      {type === 'all' && <ListBulletIcon className="w-3.5 h-3.5 shrink-0" strokeWidth={2} />}
+                      {type === 'staged' && <CheckCircleIcon className="w-3.5 h-3.5 shrink-0" strokeWidth={2} />}
+                      {type === 'unstaged' && <ClockIcon className="w-3.5 h-3.5 shrink-0" strokeWidth={2} />}
                       {type === 'all' ? 'All Changes' : type.charAt(0).toUpperCase() + type.slice(1)}
                     </button>
                   ))}
@@ -409,102 +426,62 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
               </>
             )}
 
-            {/* View Mode Toggle */}
-            <div className="flex">
-              <button
-                onClick={() => { setViewMode('unified'); }}
-                className={getButtonClassName(viewMode === 'unified', 'left')}
-              >
-                Unified
-              </button>
-              <button
-                onClick={() => { setViewMode('split'); }}
-                className={getButtonClassName(viewMode === 'split', 'right')}
-              >
-                Split
-              </button>
-            </div>
+            {/* Comment Actions (copy pending / clear) */}
+            {(pendingThreads > 0 || comments.length > 0) && (
+              <fieldset className="flex m-0 p-0 border border-edge/60 rounded-md">
+                <legend className="px-1 ml-1.5 text-[10px] text-fg-subtle leading-none">Comments</legend>
+                {pendingThreads > 0 && (
+                  <button
+                    onClick={() => {
+                      void navigator.clipboard.writeText(formatPendingCommentsForExport(revisions)).then(() => {
+                        setCopyFeedback(true)
+                        setTimeout(() => { setCopyFeedback(false); }, 1500)
+                      })
+                    }}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium text-fg-muted hover:bg-surface-inset hover:text-fg transition-colors cursor-pointer ${comments.length > 0 ? 'rounded-l-md border-r border-edge/60' : 'rounded-md'}`}
+                    title="Copy pending review comments as markdown"
+                  >
+                    <ClipboardDocumentIcon className="w-3.5 h-3.5 shrink-0" strokeWidth={2} />
+                    {copyFeedback ? 'Copied!' : 'Copy'}
+                  </button>
+                )}
 
-            <div className="border-l border-edge h-5" />
-
-            {/* Display Mode Toggle */}
-            <div className="flex">
-              <button
-                onClick={() => { setDisplayMode('single'); }}
-                className={getButtonClassName(displayMode === 'single', 'left')}
-              >
-                Single File
-              </button>
-              <button
-                onClick={() => { setDisplayMode('all'); }}
-                className={getButtonClassName(displayMode === 'all', 'right')}
-              >
-                All Files
-              </button>
-            </div>
+                {comments.length > 0 && (
+                  <button
+                    onClick={handleClearComments}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium text-fg-muted hover:bg-danger/10 hover:text-danger transition-colors cursor-pointer ${pendingThreads > 0 ? 'rounded-r-md' : 'rounded-md'}`}
+                    title="Clear comments"
+                  >
+                    <TrashIcon className="w-3.5 h-3.5 shrink-0" strokeWidth={2} />
+                    Clear
+                  </button>
+                )}
+              </fieldset>
+            )}
 
             {/* Collapse All Button */}
             <button
               onClick={toggleAllCollapse}
-              className={`${getButtonClassName(false, 'single')} disabled:opacity-50 disabled:cursor-not-allowed`}
+              className={`${getIconButtonClassName(false)} disabled:opacity-50 disabled:cursor-not-allowed`}
               disabled={displayMode === 'single'}
-              title={displayMode === 'single' ? 'Available in All Files mode' : ''}
+              title={collapseAllTitle}
             >
-              {collapsedFiles.size === data?.files.length ? 'Expand All' : 'Collapse All'}
+              {allFilesCollapsed ? (
+                <ChevronDoubleDownIcon className="w-3.5 h-3.5 shrink-0" strokeWidth={2} />
+              ) : (
+                <ChevronDoubleUpIcon className="w-3.5 h-3.5 shrink-0" strokeWidth={2} />
+              )}
             </button>
 
             {/* Wrap Lines Toggle */}
             <button
               onClick={() => { setWrapLines(!wrapLines); }}
-              className={getButtonClassName(wrapLines, 'single')}
+              className={getIconButtonClassName(wrapLines)}
               title="Toggle line wrapping"
             >
-              Wrap Lines
-            </button>
-
-            {(() => {
-              const totalThreads = comments.filter(c => !c.parentId).length
-              const pendingThreads = comments.filter(c => !c.parentId && c.status === 'open').length
-              return pendingThreads > 0 && (
-                <button
-                  onClick={() => {
-                    void navigator.clipboard.writeText(formatPendingCommentsForExport(revisions)).then(() => {
-                      setCopyFeedback(true)
-                      setTimeout(() => { setCopyFeedback(false); }, 1500)
-                    })
-                  }}
-                  className={getButtonClassName(false, 'single')}
-                  title="Copy pending review comments as markdown"
-                >
-                  {copyFeedback ? 'Copied!' : `Copy Comments (${pendingThreads}/${totalThreads})`}
-                </button>
-              )
-            })()}
-
-            {/* Clear Comments Button */}
-            <button
-              onClick={handleClearComments}
-              className={`${getButtonClassName(false, 'single', true)} inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed`}
-              disabled={comments.length === 0}
-              title={comments.length === 0 ? 'No comments to clear' : 'Clear comments'}
-            >
               <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5M3.75 17.25h10.5m3-2.25 2.25 2.25-2.25 2.25" />
               </svg>
-              Comments
-            </button>
-
-            {/* Clear Reviews Button */}
-            <button
-              onClick={handleClearReviewed}
-              className={`${getButtonClassName(false, 'single', true)} inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed`}
-              disabled={reviewedFiles.size === 0}
-              title={reviewedFiles.size === 0 ? 'No reviewed files to clear' : 'Clear reviews'}
-            >
-              <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
-              </svg>
-              Reviews
             </button>
 
             <SettingsPanel
@@ -518,6 +495,13 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
               }}
               copyAllFeedback={copyAllFeedback}
               hasComments={comments.length > 0}
+              totalThreads={totalThreads}
+              pendingThreads={pendingThreads}
+              commentCountsByAuthor={commentCountsByAuthor}
+              viewMode={viewMode}
+              onToggleViewMode={() => { setViewMode(viewMode === 'unified' ? 'split' : 'unified'); }}
+              displayMode={displayMode}
+              onToggleDisplayMode={() => { setDisplayMode(displayMode === 'single' ? 'all' : 'single'); }}
             />
             </div>
           </div>
@@ -529,64 +513,61 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
         <Panel defaultSize={20} minSize={15} maxSize={600} id="sidebar">
           <Group orientation="vertical" className="h-full" id="sidebar-group">
             <Panel defaultSize={60} minSize={20} id="file-panel">
-              <div className="h-full bg-surface-raised border-r border-edge p-2 overflow-y-auto">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-xs font-semibold text-fg">
-                    Files changed ({data?.files.length ?? 0})
-                    {reviewedFiles.size > 0 && (
-                      <span className="ml-2 text-xs text-fg-muted">
-                        ({reviewedFiles.size} reviewed)
-                      </span>
-                    )}
-                  </h3>
-
-                  <div className="flex items-center gap-2">
-                    {reviewedFiles.size > 0 && (
-                      <button
-                        onClick={clearReviewed}
-                        className="text-xs px-1.5 py-0.5 text-fg-muted
-                                   hover:text-fg
-                                   hover:bg-surface-inset
-                                   rounded transition-colors"
-                        title="Clear all reviewed marks"
-                      >
-                        Clear
-                      </button>
-                    )}
-
-                    <button
-                      onClick={() => { setFileViewMode(fileViewMode === 'list' ? 'tree' : 'list'); }}
-                      className="text-base p-0.5 text-fg-muted hover:text-fg transition-colors cursor-pointer bg-transparent border-none opacity-70 hover:opacity-100"
-                      title={fileViewMode === 'list' ? 'Switch to tree view' : 'Switch to list view'}
-                    >
-                      {fileViewMode === 'list' ? '◈' : '☰'}
-                    </button>
-                  </div>
-                </div>
+              <div className="h-full bg-surface-raised border-r border-edge flex flex-col">
+                <DirectorySwitcher
+                  currentDirectory={currentDirectory}
+                  directories={directories}
+                  homeDir={homeDir}
+                  onSelectDirectory={(dir) => {
+                    setCurrentDirectory(dir)
+                    setSelectedRevision(null)
+                    setSelectedFile(null)
+                  }}
+                  onAddDirectory={handleDirectoryChange}
+                  onRemoveDirectory={removeDirectory}
+                  onReorderDirectories={reorderDirectories}
+                  onValidate={validateDirectory}
+                />
 
                 {/* File List */}
-                <FileList
-                  files={data?.files ?? []}
-                  selectedFile={selectedFile}
-                  onSelectFile={setSelectedFile}
-                  displayMode={displayMode}
-                  viewMode={fileViewMode}
-                  collapsedFolders={collapsedFolders}
-                  onToggleFolderCollapse={(folder) => {
-                    setCollapsedFolders(prev => {
-                      const newSet = new Set(prev)
-                      if (newSet.has(folder)) {
-                        newSet.delete(folder)
-                      } else {
-                        newSet.add(folder)
-                      }
-                      return newSet
-                    })
-                  }}
-                  reviewedFiles={reviewedFiles}
-                  onToggleReviewed={handleToggleReviewed}
-                  commentCounts={commentCountsByFile}
-                />
+                <div className="flex-1 min-h-0">
+                  <FileList
+                    files={data?.files ?? []}
+                    selectedFile={selectedFile}
+                    onSelectFile={setSelectedFile}
+                    displayMode={displayMode}
+                    viewMode={fileViewMode}
+                    onToggleViewMode={() => { setFileViewMode(fileViewMode === 'list' ? 'tree' : 'list'); }}
+                    collapsedFolders={collapsedFolders}
+                    onToggleFolderCollapse={(folder) => {
+                      setCollapsedFolders(prev => {
+                        const newSet = new Set(prev)
+                        if (newSet.has(folder)) {
+                          newSet.delete(folder)
+                        } else {
+                          newSet.add(folder)
+                        }
+                        return newSet
+                      })
+                    }}
+                    reviewedFiles={reviewedFiles}
+                    onToggleReviewed={handleToggleReviewed}
+                    commentCounts={commentCountsByFile}
+                  />
+                </div>
+
+                {/* Clear Reviews Button */}
+                <button
+                  onClick={handleClearReviewed}
+                  className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-fg-muted border-t border-edge hover:bg-danger/10 hover:text-danger transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-fg-muted"
+                  disabled={reviewedFiles.size === 0}
+                  title={reviewedFiles.size === 0 ? 'No reviewed files to clear' : 'Clear reviewed marks'}
+                >
+                  <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                  </svg>
+                  Clear Reviews
+                </button>
               </div>
             </Panel>
 
@@ -596,12 +577,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
             />
 
             <Panel defaultSize={40} minSize={15} id="revision-panel">
-              <div className="h-full bg-surface-raised border-r border-edge overflow-y-auto">
-                <div className="px-2 pt-2 pb-1">
-                  <h3 className="text-xs font-semibold text-fg">
-                    Revisions
-                  </h3>
-                </div>
+              <div className="h-full bg-surface-raised border-r border-edge flex flex-col">
                 <RevisionList
                   revisions={revisions}
                   loading={revisionsLoading}

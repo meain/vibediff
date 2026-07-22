@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
+import { FolderIcon, ChevronDownIcon } from '@heroicons/react/24/solid'
 
 interface DirectorySwitcherProps {
   currentDirectory: string
@@ -29,18 +31,31 @@ export default function DirectorySwitcher({
   const [orderedDirs, setOrderedDirs] = useState<string[]>(directories)
   const [dragIndex, setDragIndex] = useState<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const validationTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      const target = event.target as Node
+      if (
+        dropdownRef.current && !dropdownRef.current.contains(target) &&
+        triggerRef.current && !triggerRef.current.contains(target)
+      ) {
         setIsOpen(false)
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
+
+  useEffect(() => {
+    if (isOpen && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect()
+      setMenuPos({ top: rect.bottom + 4, left: rect.left })
+    }
+  }, [isOpen])
 
   useEffect(() => {
     if (inputValue) {
@@ -129,23 +144,23 @@ export default function DirectorySwitcher({
   }
 
   return (
-    <div ref={dropdownRef} className="relative">
+    <div className="relative">
       <button
+        ref={triggerRef}
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-1.5 px-2.5 py-1 text-xs text-fg-muted bg-surface-inset hover:bg-edge border border-edge hover:border-fg-subtle rounded transition-colors"
+        className="flex items-center gap-1.5 w-full px-2 py-1.5 text-xs text-fg-muted hover:bg-surface-inset hover:text-fg border-b border-edge transition-colors"
         title={currentDirectory}
       >
-        <svg className="w-3.5 h-3.5 text-accent" fill="currentColor" viewBox="0 0 16 16">
-          <path d="M1.75 1A1.75 1.75 0 000 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0016 13.25v-8.5A1.75 1.75 0 0014.25 3H7.5a.25.25 0 01-.2-.1l-.9-1.2C6.07 1.26 5.55 1 5 1H1.75z"/>
-        </svg>
-        <span className="font-medium">{formatPath(currentDirectory || 'No directory', 30)}</span>
-        <svg className="w-2.5 h-2.5 ml-0.5" fill="currentColor" viewBox="0 0 16 16">
-          <path d="M4 6l4 4 4-4z"/>
-        </svg>
+        <FolderIcon className="w-3.5 h-3.5 text-accent shrink-0" />
+        <span className="font-medium truncate flex-1 text-left">{formatPath(currentDirectory || 'No directory', 40)}</span>
+        <ChevronDownIcon className="w-2.5 h-2.5 ml-0.5 shrink-0" />
       </button>
 
-      {isOpen && (
-        <div className="absolute top-full left-0 mt-1 w-[500px] bg-surface-raised border border-edge rounded-lg shadow-xl z-50 max-h-[400px] overflow-auto">
+      {isOpen && menuPos && createPortal(
+        <div
+          ref={dropdownRef}
+          style={{ top: menuPos.top, left: menuPos.left }}
+          className="fixed w-[500px] bg-surface-raised border border-edge rounded-lg shadow-xl z-50 max-h-[400px] overflow-auto">
           {/* Add new directory */}
           <div className="p-3 border-b border-edge">
             <div className="text-xs font-semibold text-fg-muted mb-2">Add Directory</div>
@@ -224,7 +239,8 @@ export default function DirectorySwitcher({
               No registered directories
             </div>
           )}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )

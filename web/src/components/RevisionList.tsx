@@ -260,18 +260,17 @@ export default function RevisionList({
   }
 
   return (
-    <div className="overflow-y-auto">
+    <div className="flex flex-col h-full">
       {/* Filter input */}
-      <div className="px-2 py-1.5 border-b border-edge">
-        <input
-          type="text"
-          value={filter}
-          onChange={(e) => { setFilter(e.target.value); }}
-          placeholder="Filter by ID or message…"
-          className="w-full px-2 py-1 text-xs bg-surface border border-edge rounded text-fg placeholder:text-fg-subtle focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-        />
-      </div>
+      <input
+        type="text"
+        value={filter}
+        onChange={(e) => { setFilter(e.target.value); }}
+        placeholder="Filter by ID or message…"
+        className="w-full flex-none px-2 py-1.5 text-xs bg-surface-inset text-fg placeholder:text-fg-subtle border-b border-edge focus:outline-none focus:border-accent"
+      />
 
+      <div className="flex-1 overflow-y-auto">
       {/* Working copy option — only for git, since in jj the first revision IS the working copy */}
       {backend === 'git' && !query && (
         <div
@@ -329,6 +328,7 @@ export default function RevisionList({
           />
         )
       })}
+      </div>
     </div>
   )
 }

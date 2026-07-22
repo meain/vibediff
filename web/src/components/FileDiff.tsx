@@ -5,6 +5,7 @@ import CommentDisplay from './CommentDisplay'
 import InlineCommentForm from './InlineCommentForm'
 import CopyButton from './CopyButton'
 import { useRangeSelection } from '../hooks/useRangeSelection'
+import { ArrowsUpDownIcon, ArrowsPointingOutIcon, ArrowsPointingInIcon } from '@heroicons/react/24/outline'
 
 interface SplitViewLineResult {
   line: React.ReactNode
@@ -49,55 +50,59 @@ function GapRow({ gap, gapData, isLoading, onExpandDown, onExpandUp, onExpandAll
 
   const showExpandDown = gap.position === 'between' || gap.position === 'after-last'
   const showExpandUp = gap.position === 'between' || gap.position === 'before-first'
+  const expandBothDirections = showExpandDown && showExpandUp
+
+  const handleExpand = (): void => {
+    if (showExpandDown) onExpandDown()
+    if (showExpandUp) onExpandUp()
+  }
+
+  const expandButtonClass = 'inline-flex items-center gap-1 px-2 py-0.5 text-fg-muted hover:bg-surface-inset hover:text-fg disabled:opacity-50 disabled:cursor-not-allowed transition-colors bg-transparent border-0'
 
   return (
     <tr className="bg-surface-raised border-y border-edge">
-      <td colSpan={colSpan} className="px-[10px] py-1 text-xs font-mono text-center">
-        <span className="inline-flex items-center gap-3">
-          {gapData.remainingHidden > 0 && showExpandDown && (
+      <td colSpan={colSpan} className="px-[10px] py-1 text-xs font-mono">
+        <span className="inline-flex items-center [&>button:not(:last-child)]:border-r [&>button:not(:last-child)]:border-edge/60">
+          {gapData.remainingHidden > 0 && (showExpandDown || showExpandUp) && (
             <button
-              onClick={onExpandDown}
-              className="text-accent-emphasis hover:underline cursor-pointer bg-transparent border-none"
+              onClick={handleExpand}
+              className={expandButtonClass}
               disabled={isLoading}
+              title={expandBothDirections ? 'Expand up and down' : showExpandDown ? 'Expand down' : 'Expand up'}
             >
-              ↓ Expand down
+              <ArrowsUpDownIcon className="w-3 h-3 shrink-0" strokeWidth={2} />
+              Expand
             </button>
-          )}
-
-          {isLoading && (
-            <span className="text-fg-muted">Loading...</span>
-          )}
-          {!isLoading && gapData.remainingHidden > 0 && !gapData.unknownCount && (
-            <span className="text-fg-muted">
-              {String(gapData.remainingHidden)} lines hidden
-            </span>
           )}
 
           {gapData.remainingHidden > 0 && (
             <button
               onClick={onExpandAll}
-              className="text-accent-emphasis hover:underline cursor-pointer bg-transparent border-none"
+              className={expandButtonClass}
               disabled={isLoading}
+              title="Expand all"
             >
-              ⇕ Expand all
+              <ArrowsPointingOutIcon className="w-3 h-3 shrink-0" strokeWidth={2} />
+              Expand all
             </button>
           )}
 
-          {gapData.remainingHidden > 0 && showExpandUp && (
-            <button
-              onClick={onExpandUp}
-              className="text-accent-emphasis hover:underline cursor-pointer bg-transparent border-none"
-              disabled={isLoading}
-            >
-              ↑ Expand up
-            </button>
+          {isLoading && (
+            <span className="text-fg-subtle px-2">Loading...</span>
+          )}
+          {!isLoading && gapData.remainingHidden > 0 && !gapData.unknownCount && (
+            <span className="text-fg-subtle px-2">
+              {String(gapData.remainingHidden)} lines hidden
+            </span>
           )}
 
           {gapData.isExpanded && (
             <button
               onClick={onCollapse}
-              className="text-fg-muted hover:text-fg hover:underline cursor-pointer bg-transparent border-none"
+              className="inline-flex items-center gap-1 px-2 py-0.5 text-fg-muted hover:bg-surface-inset hover:text-fg transition-colors bg-transparent border-0"
+              title="Collapse"
             >
+              <ArrowsPointingInIcon className="w-3 h-3 shrink-0" strokeWidth={2} />
               Collapse
             </button>
           )}

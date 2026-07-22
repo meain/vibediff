@@ -18,23 +18,25 @@ export function getButtonClassName(isActive: boolean, variant: ButtonVariant = '
   }
 
   const stateClasses = (() => {
-    if (isActive) return 'bg-accent text-accent-fg border-accent'
-    if (danger) return 'bg-surface-inset text-danger border-edge hover:bg-edge hover:text-danger'
-    return 'bg-surface-inset text-fg-muted border-edge hover:bg-edge hover:text-fg'
+    if (isActive) return 'bg-accent/15 text-accent-emphasis border-accent/40'
+    if (danger) return 'bg-transparent text-fg-muted border-edge/60 hover:bg-danger/10 hover:text-danger hover:border-danger/40'
+    return 'bg-transparent text-fg-muted border-edge/60 hover:bg-surface-inset hover:text-fg hover:border-edge'
   })()
 
   return `${baseClasses} ${roundedClasses[variant]} ${stateClasses}`
 }
 
 /**
- * Get icon button class names (for buttons with only icons)
+ * Get icon button class names (for buttons with only icons, no text label)
  */
-export function getIconButtonClassName(isActive: boolean): string {
-  const baseClasses = 'p-2 text-sm border rounded-md cursor-pointer transition-colors'
+export function getIconButtonClassName(isActive: boolean, danger = false): string {
+  const baseClasses = 'flex items-center justify-center p-1.5 border rounded-md cursor-pointer transition-colors'
 
-  const stateClasses = isActive
-    ? 'bg-accent text-accent-fg border-accent'
-    : 'bg-surface-inset text-fg-subtle border-edge hover:bg-edge hover:text-fg'
+  const stateClasses = (() => {
+    if (isActive) return 'bg-accent/15 text-accent-emphasis border-accent/40'
+    if (danger) return 'bg-transparent text-fg-muted border-edge/60 hover:bg-danger/10 hover:text-danger hover:border-danger/40'
+    return 'bg-transparent text-fg-muted border-edge/60 hover:bg-surface-inset hover:text-fg hover:border-edge'
+  })()
 
   return `${baseClasses} ${stateClasses}`
 }

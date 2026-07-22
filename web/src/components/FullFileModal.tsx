@@ -102,7 +102,7 @@ export default function FullFileModal({ isOpen, filePath, directory, onClose, vi
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-auto p-4" style={{ overscrollBehavior: 'contain' }}>
+        <div className="flex-1 overflow-auto" style={{ overscrollBehavior: 'contain' }}>
           {(() => {
             if (loading) {
               return (
@@ -113,7 +113,7 @@ export default function FullFileModal({ isOpen, filePath, directory, onClose, vi
             }
             if (error) {
               return (
-                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
                   <p className="text-red-600 dark:text-red-400">Error: {error}</p>
                 </div>
               )
@@ -126,27 +126,25 @@ export default function FullFileModal({ isOpen, filePath, directory, onClose, vi
               )
             }
             return (
-              <div className="p-4">
-                <FileDiffComponent
-                  file={fileData}
-                  viewMode={viewMode}
-                  collapsed={false}
-                  onToggleCollapse={() => { /* Not collapsible in modal */ }}
-                  onAddComment={(line, lineEnd) => {
-                    setCommentDialog({ line, lineEnd })
-                  }}
-                  onViewFullFile={() => { /* Already in full view */ }}
-                  getCommentsForLine={getCommentsForLine}
-                  getCommentRangeLines={getCommentRangeLines}
-                  onDeleteComment={onDeleteComment}
-                  onUpdateComment={onUpdateComment}
-                  onAddReply={onAddReply}
-                  onResolveComment={onResolveComment}
-                  onReopenComment={onReopenComment}
-                  hideViewFullFile={true}
-                  wrapLines={wrapLines}
-                />
-              </div>
+              <FileDiffComponent
+                file={fileData}
+                viewMode={viewMode}
+                collapsed={false}
+                onToggleCollapse={() => { /* Not collapsible in modal */ }}
+                onAddComment={(line, lineEnd) => {
+                  setCommentDialog({ line, lineEnd })
+                }}
+                onViewFullFile={() => { /* Already in full view */ }}
+                getCommentsForLine={getCommentsForLine}
+                getCommentRangeLines={getCommentRangeLines}
+                onDeleteComment={onDeleteComment}
+                onUpdateComment={onUpdateComment}
+                onAddReply={onAddReply}
+                onResolveComment={onResolveComment}
+                onReopenComment={onReopenComment}
+                hideViewFullFile={true}
+                wrapLines={wrapLines}
+              />
             )
           })()}
         </div>

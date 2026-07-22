@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { FileDiff } from '../types/diff'
+import { FolderOpenIcon, ListBulletIcon } from '@heroicons/react/24/outline'
 
 interface FileListProps {
   files: FileDiff[]
@@ -7,6 +8,7 @@ interface FileListProps {
   onSelectFile: (file: FileDiff) => void
   displayMode: 'single' | 'all'
   viewMode: 'list' | 'tree'
+  onToggleViewMode: () => void
   collapsedFolders: Set<string>
   onToggleFolderCollapse: (folder: string) => void
   reviewedFiles: Set<string>
@@ -14,7 +16,7 @@ interface FileListProps {
   commentCounts?: Map<string, number>
 }
 
-export default function FileList({ files, selectedFile, onSelectFile, displayMode, viewMode, collapsedFolders, onToggleFolderCollapse, reviewedFiles, onToggleReviewed, commentCounts }: FileListProps): React.ReactElement {
+export default function FileList({ files, selectedFile, onSelectFile, displayMode, viewMode, onToggleViewMode, collapsedFolders, onToggleFolderCollapse, reviewedFiles, onToggleReviewed, commentCounts }: FileListProps): React.ReactElement {
   const [filter, setFilter] = useState('')
 
   const filteredFiles = filter.trim()
@@ -137,8 +139,22 @@ export default function FileList({ files, selectedFile, onSelectFile, displayMod
       onChange={(e) => { setFilter(e.target.value); }}
       onKeyDown={(e) => { if (e.key === 'Escape') setFilter(''); }}
       placeholder="Filter files…"
-      className="w-full px-2 py-1 mb-1.5 text-xs rounded border border-edge bg-surface-inset text-fg placeholder-fg-subtle focus:outline-none focus:border-accent"
+      className="w-full px-2 py-1.5 text-xs bg-surface-inset text-fg placeholder-fg-subtle border-b border-edge focus:outline-none focus:border-accent"
     />
+  )
+
+  const viewModeToggle = (
+    <button
+      onClick={onToggleViewMode}
+      className="p-0.5 -my-0.5 mr-1.5 text-fg-muted hover:text-fg transition-colors cursor-pointer bg-transparent border border-edge/60 rounded hover:bg-surface-inset hover:border-edge opacity-80 hover:opacity-100"
+      title={viewMode === 'list' ? 'Switch to tree view' : 'Switch to list view'}
+    >
+      {viewMode === 'list' ? (
+        <FolderOpenIcon className="w-3.5 h-3.5" />
+      ) : (
+        <ListBulletIcon className="w-3.5 h-3.5" />
+      )}
+    </button>
   )
 
   if (viewMode === 'tree') {
@@ -156,7 +172,7 @@ export default function FileList({ files, selectedFile, onSelectFile, displayMod
             }}
             className={`flex items-center gap-2 px-1.5 py-0.5 rounded cursor-pointer text-xs break-all transition-colors
               ${selectedFile?.path === node.file.path
-                ? 'bg-accent-muted border-l-2 border-l-accent -ml-[2px] pl-[calc(0.375rem-2px)] text-accent-emphasis font-medium'
+                ? 'bg-accent-muted text-accent-emphasis font-medium'
                 : 'text-fg hover:bg-surface-raised'
               }`}
             style={{ paddingLeft: `${String(depth * 16 + 16)}px` }}
@@ -241,76 +257,91 @@ export default function FileList({ files, selectedFile, onSelectFile, displayMod
     }
 
     return (
-      <div className="flex flex-col gap-0.5">
-        {filterInput}
-        <div className="flex items-center justify-between px-1.5 py-1 mb-0.5 border-b border-edge">
-          <span className="text-xs text-fg-muted">{filteredFiles.length} file{filteredFiles.length !== 1 ? 's' : ''}</span>
-          <div className="flex items-center gap-1 text-xs">
-            <span className="text-success">+{totalAdditions}</span>
-            <span className="text-danger">-{totalDeletions}</span>
+      <div className="flex flex-col h-full">
+        <div className="flex-none">
+          {filterInput}
+          <div className="flex items-center justify-between px-1.5 py-1 mb-0.5 border-b border-edge">
+            <span className="flex items-center text-xs text-fg-muted">
+              {viewModeToggle}
+              {filteredFiles.length} file{filteredFiles.length !== 1 ? 's' : ''}
+            </span>
+            <div className="flex items-center gap-1 text-xs">
+              <span className="text-success">+{totalAdditions}</span>
+              <span className="text-danger">-{totalDeletions}</span>
+            </div>
           </div>
         </div>
-        {tree.children.map(child => renderTreeNode(child, 0))}
+        <div className="flex-1 overflow-y-auto flex flex-col gap-0.5 p-2">
+          {tree.children.map(child => renderTreeNode(child, 0))}
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col gap-0.5">
-      {filterInput}
-      <div className="flex items-center justify-between px-1.5 py-1 mb-0.5 border-b border-edge">
-        <span className="text-xs text-fg-muted">{filteredFiles.length} file{filteredFiles.length !== 1 ? 's' : ''}</span>
-        <div className="flex items-center gap-1 text-xs">
-          <span className="text-success">+{totalAdditions}</span>
-          <span className="text-danger">-{totalDeletions}</span>
-        </div>
-      </div>
-      {filteredFiles.map((file) => (
-        <div
-          key={file.path}
-          onClick={(e) => {
-            if (e.target instanceof HTMLInputElement) return
-            handleFileClick(file)
-          }}
-          className={`flex items-center gap-2 px-1.5 py-0.5 rounded cursor-pointer text-xs break-all transition-colors
-            ${selectedFile?.path === file.path
-              ? 'bg-accent-muted border-l-2 border-l-accent -ml-[2px] pl-[calc(0.375rem-2px)] text-accent-emphasis font-medium'
-              : 'text-fg hover:bg-surface-raised'
-            }`}
-        >
-          <input
-            type="checkbox"
-            checked={reviewedFiles.has(file.path)}
-            onChange={(e) => {
-              e.stopPropagation()
-              onToggleReviewed(file)
-            }}
-            onClick={(e) => { e.stopPropagation(); }}
-            className="w-4 h-4 rounded border-edge text-accent cursor-pointer flex-shrink-0
-                       focus:ring-2 focus:ring-accent"
-            title="Mark as reviewed"
-          />
-          <span className={`flex-1 min-w-0 ${reviewedFiles.has(file.path) ? 'opacity-60' : ''}`}>
-            {file.path}
+    <div className="flex flex-col h-full">
+      <div className="flex-none">
+        {filterInput}
+        <div className="flex items-center justify-between px-1.5 py-1 mb-0.5 border-b border-edge">
+          <span className="flex items-center text-xs text-fg-muted">
+            {viewModeToggle}
+            {filteredFiles.length} file{filteredFiles.length !== 1 ? 's' : ''}
           </span>
-          <div className="flex items-center gap-1 text-xs flex-shrink-0">
-            {file.isGenerated && <span className="text-fg-muted" title="Generated file">gen</span>}
-            {file.status === 'added' && <span className="font-bold text-success" title="Added">A</span>}
-            {file.status === 'deleted' && <span className="font-bold text-danger" title="Deleted">D</span>}
-            {file.status === 'renamed' && <span className="font-bold text-accent" title={`Renamed from ${file.oldPath ?? ''}`}>R</span>}
-            {!!commentCounts?.get(file.path) && (
-              <span className="flex items-center gap-0.5 text-fg-muted" title={`${String(commentCounts.get(file.path))} comment${commentCounts.get(file.path) === 1 ? '' : 's'}`}>
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.076-4.076a1.526 1.526 0 011.037-.443 48.282 48.282 0 005.68-.494c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
-                </svg>
-                {commentCounts.get(file.path)}
-              </span>
-            )}
-            <span className="text-success">+{file.additions}</span>
-            <span className="text-danger">-{file.deletions}</span>
+          <div className="flex items-center gap-1 text-xs">
+            <span className="text-success">+{totalAdditions}</span>
+            <span className="text-danger">-{totalDeletions}</span>
           </div>
         </div>
-      ))}
-    </div>
+      </div>
+      <div className="flex-1 overflow-y-auto flex flex-col gap-0.5 p-2">
+        {filteredFiles.map((file) => (
+            <div
+              key={file.path}
+              onClick={(e) => {
+                if (e.target instanceof HTMLInputElement) return
+                handleFileClick(file)
+              }}
+              className={`flex items-center gap-2 px-1.5 py-0.5 rounded cursor-pointer text-xs break-all transition-colors
+                ${selectedFile?.path === file.path
+                  ? 'bg-accent-muted text-accent-emphasis font-medium'
+                  : 'text-fg hover:bg-surface-raised'
+                }`}
+            >
+              <input
+                type="checkbox"
+                checked={reviewedFiles.has(file.path)}
+                onChange={(e) => {
+                  e.stopPropagation()
+                  onToggleReviewed(file)
+                }}
+                onClick={(e) => { e.stopPropagation(); }}
+                className="w-4 h-4 rounded border-edge text-accent cursor-pointer flex-shrink-0
+                           focus:ring-2 focus:ring-accent"
+                title="Mark as reviewed"
+              />
+              <span className={`flex-1 min-w-0 ${reviewedFiles.has(file.path) ? 'opacity-60' : ''}`}>
+                {file.path}
+              </span>
+              <div className="flex items-center gap-1 text-xs flex-shrink-0">
+                {file.isGenerated && <span className="text-fg-muted" title="Generated file">gen</span>}
+                {file.status === 'added' && <span className="font-bold text-success" title="Added">A</span>}
+                {file.status === 'deleted' && <span className="font-bold text-danger" title="Deleted">D</span>}
+                {file.status === 'renamed' && <span className="font-bold text-accent" title={`Renamed from ${file.oldPath ?? ''}`}>R</span>}
+                {!!commentCounts?.get(file.path) && (
+                  <span className="flex items-center gap-0.5 text-fg-muted" title={`${String(commentCounts.get(file.path))} comment${commentCounts.get(file.path) === 1 ? '' : 's'}`}>
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.076-4.076a1.526 1.526 0 011.037-.443 48.282 48.282 0 005.68-.494c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
+                    </svg>
+                    {commentCounts.get(file.path)}
+                  </span>
+                )}
+                <span className="text-success">+{file.additions}</span>
+                <span className="text-danger">-{file.deletions}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
   )
 }
+
