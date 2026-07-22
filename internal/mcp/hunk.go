@@ -39,11 +39,45 @@ func (p *gitHunkProvider) HunkFor(_ context.Context, c *review.Comment) (Hunk, e
 		raw = ""
 	}
 
+	line, lineEnd, side := normalizeCommentRange(c.Line, c.LineEnd, c.Side)
 	return Hunk{
-		Text:      extractRelevantHunks(raw, c.Line, c.LineEnd, c.Side),
+		Text:      extractRelevantHunks(raw, line, lineEnd, side),
 		Truncated: false,
 		Drifted:   p.driftedAt(c),
 	}, nil
+}
+
+// normalizeCommentRange resolves a comment's line range to positive values
+// plus an effective side. The frontend anchors comments on deleted lines to
+// the negative of their old-file line number (see FileDiff.tsx's
+// lineNumberOf) so they get keys distinct from added/context lines; that
+// sign is the only place removed-line comments record which side of the
+// diff they belong to, so an effective side is derived from it here. A
+// caller-supplied side is honored only when both endpoints are already
+// positive (i.e. it wasn't inferred from the negative-number convention).
+func normalizeCommentRange(line, lineEnd int, side string) (int, int, string) {
+	lineNeg := line < 0
+	lineEndNeg := lineEnd < 0
+	if !lineNeg && !lineEndNeg {
+		return line, lineEnd, side
+	}
+
+	absLine, absLineEnd := line, lineEnd
+	if absLine < 0 {
+		absLine = -absLine
+	}
+	if absLineEnd < 0 {
+		absLineEnd = -absLineEnd
+	}
+	if absLineEnd < absLine {
+		absLine, absLineEnd = absLineEnd, absLine
+	}
+
+	if lineNeg && lineEndNeg {
+		return absLine, absLineEnd, "left"
+	}
+	// Range spans both the removed and added/context sides; don't restrict.
+	return absLine, absLineEnd, ""
 }
 
 // hunkHeaderRE matches a unified-diff hunk header:
@@ -166,7 +200,8 @@ func (p *gitHunkProvider) driftedAt(c *review.Comment) bool {
 		return false
 	}
 
-	return linesDiffer(pinned, current, c.Line, c.LineEnd)
+	line, lineEnd, _ := normalizeCommentRange(c.Line, c.LineEnd, c.Side)
+	return linesDiffer(pinned, current, line, lineEnd)
 }
 
 func (p *gitHunkProvider) readWorkingCopy(dir, file string) (string, error) {

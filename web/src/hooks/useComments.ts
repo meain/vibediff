@@ -3,6 +3,18 @@ import type { Comment, Revision } from '../types/diff'
 import { WebSocketContext } from '../contexts/WebSocketContext'
 import { groupIntoThreads } from '../utils/threads'
 
+// Deleted lines are keyed by the negative of their old-file line number (see
+// FileDiff.tsx's lineNumberOf), so a negative value here means the comment
+// anchors to the removed side of the diff rather than the added/context side.
+function formatLineRef(line: number, lineEnd: number): string {
+  const startTag = line < 0 ? ' (removed)' : ''
+  const endTag = lineEnd < 0 ? ' (removed)' : ''
+  if (line === lineEnd) {
+    return `Line ${String(Math.abs(line))}${startTag}`
+  }
+  return `Lines ${String(Math.abs(line))}${startTag}–${String(Math.abs(lineEnd))}${endTag}`
+}
+
 interface UseCommentsReturn {
   comments: Comment[]
   addComment: (file: string, line: number, content: string, lineEnd: number, parentId?: string) => Promise<Comment>
@@ -200,9 +212,7 @@ export function useComments(currentDirectory?: string, selectedRevision?: string
       for (const [file, roots] of byFile) {
         out.push(`### ${file}`, '')
         for (const root of roots) {
-          const lineRef = root.line === root.lineEnd
-            ? `Line ${Math.abs(root.line)}`
-            : `Lines ${Math.abs(root.line)}–${Math.abs(root.lineEnd)}`
+          const lineRef = formatLineRef(root.line, root.lineEnd)
           out.push(`- **${lineRef}** [${authorLabel(root)}]: ${root.content}`)
           const thread = threads.get(root.id)
           if (thread) {
@@ -293,9 +303,7 @@ export function useComments(currentDirectory?: string, selectedRevision?: string
     for (const [file, roots] of byFile) {
       lines.push(`### ${file}`, '')
       for (const root of roots) {
-        const lineRef = root.line === root.lineEnd
-          ? `Line ${Math.abs(root.line)}`
-          : `Lines ${Math.abs(root.line)}–${Math.abs(root.lineEnd)}`
+        const lineRef = formatLineRef(root.line, root.lineEnd)
         lines.push(`- **${lineRef}** [${authorLabel(root)}]: ${root.content}`)
         const thread = threads.get(root.id)
         if (thread) {
