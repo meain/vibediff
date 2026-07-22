@@ -428,8 +428,9 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
 
             {/* Comment Actions (copy pending / clear) */}
             {(pendingThreads > 0 || comments.length > 0) && (
-              <fieldset className="flex m-0 p-0 border border-edge/60 rounded-md">
-                <legend className="px-1 ml-1.5 text-[10px] text-fg-subtle leading-none">Comments</legend>
+              <div className="relative pt-[7px]">
+                <span className="absolute top-0 left-2 px-1 bg-surface-raised text-[10px] text-fg-subtle leading-none">Comments</span>
+                <div className="flex border border-edge/60 rounded-md overflow-hidden">
                 {pendingThreads > 0 && (
                   <button
                     onClick={() => {
@@ -456,7 +457,8 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
                     Clear
                   </button>
                 )}
-              </fieldset>
+                </div>
+              </div>
             )}
 
             {/* Collapse All Button */}
