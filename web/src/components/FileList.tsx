@@ -91,6 +91,25 @@ export default function FileList({ files, selectedFile, onSelectFile, displayMod
       })
     }
 
+    // Collapse chains of single-child folders (e.g. `internal/query/adx`) into
+    // one row, even mid-tree, by absorbing a folder's only folder-child upward
+    // until it branches or hits a file.
+    const collapseChains = (node: TreeNode): void => {
+      node.children.forEach(child => {
+        if (child.type !== 'folder') return
+
+        collapseChains(child)
+
+        while (child.children.length === 1 && child.children[0].type === 'folder') {
+          const only = child.children[0]
+          child.name = `${child.name}/${only.name}`
+          child.path = only.path
+          child.children = only.children
+        }
+      })
+    }
+
+    collapseChains(root)
     sortNodes(root)
     return root
   }
