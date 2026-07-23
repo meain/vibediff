@@ -6,10 +6,16 @@ interface DirectoryInfo {
   backend: VCSBackend
 }
 
+/** A registered directory: `path` is the sole identity used everywhere else (API calls, URL param, reorder, remove); `alias` is an optional persisted display label. */
+export interface DirectoryEntry {
+  path: string
+  alias: string
+}
+
 interface UseDirectoryReturn {
   currentDirectory: string
   backend: VCSBackend
-  directories: string[]
+  directories: DirectoryEntry[]
   homeDir: string
   loading: boolean
   error: string | null
@@ -18,21 +24,22 @@ interface UseDirectoryReturn {
   removeDirectory: (dir: string) => Promise<void>
   reorderDirectories: (dirs: string[]) => Promise<void>
   validateDirectory: (dir: string) => Promise<{ valid: boolean; error?: string }>
+  setAlias: (path: string, alias: string) => Promise<void>
 }
 
 export function useDirectory(): UseDirectoryReturn {
-  const [directories, setDirectories] = useState<string[]>([])
+  const [directories, setDirectories] = useState<DirectoryEntry[]>([])
   const [currentDirectory, setCurrentDirectoryState] = useState<string>('')
   const [backend, setBackend] = useState<VCSBackend>('git')
   const [homeDir, setHomeDir] = useState<string>('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const fetchDirectories = useCallback(async (): Promise<string[]> => {
+  const fetchDirectories = useCallback(async (): Promise<DirectoryEntry[]> => {
     try {
       const resp = await fetch('/api/directories')
       if (!resp.ok) throw new Error('Failed to fetch directories')
-      const dirs = await resp.json() as string[]
+      const dirs = await resp.json() as DirectoryEntry[]
       setDirectories(dirs)
       return dirs
     } catch (err) {
@@ -65,7 +72,7 @@ export function useDirectory(): UseDirectoryReturn {
       ])
       if (dirs.length === 0) return
       const saved = localStorage.getItem('lastDirectory')
-      setCurrentDirectoryState(saved && dirs.includes(saved) ? saved : dirs[0])
+      setCurrentDirectoryState(saved && dirs.some(d => d.path === saved) ? saved : dirs[0].path)
     })()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -112,17 +119,30 @@ export function useDirectory(): UseDirectoryReturn {
       body: JSON.stringify(dirs),
     })
     if (!resp.ok) throw new Error('Failed to reorder directories')
-    setDirectories(dirs)
-  }, [])
+    // Reorder response/request shape is still a bare path array; refetch to get
+    // the reordered DirectoryEntry[] (with aliases preserved) from the server.
+    await fetchDirectories()
+  }, [fetchDirectories])
 
   const removeDirectory = useCallback(async (dir: string): Promise<void> => {
     const resp = await fetch(`/api/directories/${encodeURIComponent(dir)}`, { method: 'DELETE' })
     if (!resp.ok) throw new Error('Failed to remove directory')
     const dirs = await fetchDirectories()
     if (currentDirectory === dir) {
-      setCurrentDirectoryState(dirs.length > 0 ? dirs[0] : '')
+      setCurrentDirectoryState(dirs.length > 0 ? dirs[0].path : '')
     }
   }, [currentDirectory, fetchDirectories])
+
+  /** Persists a new display alias for a registered directory (empty string clears it). */
+  const setAlias = useCallback(async (path: string, alias: string): Promise<void> => {
+    const resp = await fetch(`/api/directories/${encodeURIComponent(path)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ alias }),
+    })
+    if (!resp.ok) throw new Error('Failed to set alias')
+    await fetchDirectories()
+  }, [fetchDirectories])
 
   const validateDirectory = useCallback(async (dir: string): Promise<{ valid: boolean; error?: string }> => {
     try {
@@ -150,5 +170,6 @@ export function useDirectory(): UseDirectoryReturn {
     removeDirectory,
     reorderDirectories,
     validateDirectory,
+    setAlias,
   }
 }

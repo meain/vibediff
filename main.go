@@ -159,6 +159,7 @@ func main() {
 	r.HandleFunc("/api/directories", handler.ReorderDirectories).Methods("PUT")
 	r.HandleFunc("/api/directories/validate", handler.ValidateDirectory).Methods("POST")
 	r.HandleFunc("/api/directories/{path:.+}", handler.RemoveDirectory).Methods("DELETE")
+	r.HandleFunc("/api/directories/{path:.+}", handler.SetDirectoryAlias).Methods("PATCH")
 
 	// WebSocket endpoint for live updates
 	r.HandleFunc("/api/ws", handler.HandleWebSocket(wsHub)).Methods("GET")

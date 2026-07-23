@@ -56,7 +56,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
   // Directory from URL (used once on mount to override registry default)
   const initialDirFromUrlRef = useRef<string | null>(new URLSearchParams(window.location.search).get('dir'))
 
-  const { currentDirectory, backend, directories, homeDir, setCurrentDirectory, registerDirectory, removeDirectory, reorderDirectories, validateDirectory } = useDirectory()
+  const { currentDirectory, backend, directories, homeDir, setCurrentDirectory, registerDirectory, removeDirectory, reorderDirectories, validateDirectory, setAlias } = useDirectory()
   const { data, loading, error, refetch } = useDiff(currentDirectory, diffType, selectedRevision)
   const [copyFeedback, setCopyFeedback] = useState(false)
   const [copyAllFeedback, setCopyAllFeedback] = useState(false)
@@ -157,7 +157,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
   // Restore directory from URL on first load (once directories are available)
   useEffect(() => {
     const urlDir = initialDirFromUrlRef.current
-    if (urlDir && directories.includes(urlDir) && currentDirectory !== urlDir) {
+    if (urlDir && directories.some(d => d.path === urlDir) && currentDirectory !== urlDir) {
       setCurrentDirectory(urlDir)
       initialDirFromUrlRef.current = null
     }
@@ -360,7 +360,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
     : { additions: 0, deletions: 0 }
 
   const handleDirectoryChange = async (dir: string): Promise<void> => {
-    if (!directories.includes(dir)) {
+    if (!directories.some(d => d.path === dir)) {
       // Not yet registered — validate + add to registry, which also sets currentDirectory.
       await registerDirectory(dir)
     } else {
@@ -529,6 +529,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
                   onRemoveDirectory={removeDirectory}
                   onReorderDirectories={reorderDirectories}
                   onValidate={validateDirectory}
+                  onSetAlias={setAlias}
                 />
 
                 {/* File List */}
