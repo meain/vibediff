@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { MagnifyingGlassIcon, ChevronLeftIcon } from '@heroicons/react/24/outline'
+import { MagnifyingGlassIcon, ChevronLeftIcon, PlusIcon } from '@heroicons/react/24/outline'
 
 export interface CommandItem {
   id: string
@@ -11,25 +11,31 @@ export interface CommandItem {
   /** Either `action` (runs and closes the palette) or `children` (drills into a submenu of these items) must be set. */
   action?: () => void
   children?: CommandItem[]
+  /** When set on an item with `children`, lets the user submit free-text input while browsing its submenu (e.g. to register a new directory) instead of only picking from the list. */
+  onFreeText?: (text: string) => void
+  /** Label for the free-text entry; defaults to `Add "<text>"`. */
+  freeTextLabel?: (text: string) => string
+}
+
+/** Walks `stack` (a path of parent item ids) down from the root `items`, returning the items, labels, and immediate parent at each level. */
+function resolveStack(items: CommandItem[], stack: string[]): { items: CommandItem[]; labels: string[]; parent: CommandItem | null } {
+  let level = items
+  let parent: CommandItem | null = null
+  const labels: string[] = []
+  for (const id of stack) {
+    const found = level.find((i) => i.id === id)
+    if (!found) break
+    labels.push(found.label)
+    parent = found
+    level = found.children ?? []
+  }
+  return { items: level, labels, parent }
 }
 
 interface CommandPaletteProps {
   isOpen: boolean
   onClose: () => void
   items: CommandItem[]
-}
-
-/** Walks `stack` (a path of parent item ids) down from the root `items`, returning the items and labels at each level. */
-function resolveStack(items: CommandItem[], stack: string[]): { items: CommandItem[]; labels: string[] } {
-  let level = items
-  const labels: string[] = []
-  for (const id of stack) {
-    const parent = level.find((i) => i.id === id)
-    if (!parent) break
-    labels.push(parent.label)
-    level = parent.children ?? []
-  }
-  return { items: level, labels }
 }
 
 export default function CommandPalette({ isOpen, onClose, items }: CommandPaletteProps): React.ReactElement | null {
@@ -39,12 +45,12 @@ export default function CommandPalette({ isOpen, onClose, items }: CommandPalett
   const inputRef = useRef<HTMLInputElement>(null)
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([])
 
-  const { items: currentItems, labels: breadcrumbs } = useMemo(
+  const { items: currentItems, labels: breadcrumbs, parent: currentParent } = useMemo(
     () => resolveStack(items, stack),
     [items, stack]
   )
 
-  const filteredItems = useMemo(() => {
+  const matchedItems = useMemo(() => {
     const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
     if (tokens.length === 0) return currentItems
     return currentItems.filter((item) => {
@@ -52,6 +58,23 @@ export default function CommandPalette({ isOpen, onClose, items }: CommandPalett
       return tokens.every((t) => haystack.includes(t))
     })
   }, [currentItems, query])
+
+  const freeTextItem = useMemo<CommandItem | null>(() => {
+    const trimmed = query.trim()
+    if (!currentParent?.onFreeText || trimmed === '') return null
+    return {
+      id: '__free-text__',
+      section: 'Add',
+      label: currentParent.freeTextLabel ? currentParent.freeTextLabel(trimmed) : `Add "${trimmed}"`,
+      icon: <PlusIcon />,
+      action: () => { currentParent.onFreeText?.(trimmed); },
+    }
+  }, [currentParent, query])
+
+  const filteredItems = useMemo(
+    () => (freeTextItem ? [freeTextItem, ...matchedItems] : matchedItems),
+    [freeTextItem, matchedItems]
+  )
 
   useEffect(() => {
     if (isOpen) {
@@ -63,8 +86,11 @@ export default function CommandPalette({ isOpen, onClose, items }: CommandPalett
   }, [isOpen])
 
   useEffect(() => {
-    setHighlightedIndex(0)
-  }, [query, stack])
+    // The free-text "Add …" entry is prepended first for visibility, but if the
+    // query actually matches a real item, that match should be the one selected
+    // on Enter — not the free-text entry.
+    setHighlightedIndex(freeTextItem && matchedItems.length > 0 ? 1 : 0)
+  }, [query, stack, freeTextItem, matchedItems])
 
   useEffect(() => {
     itemRefs.current[highlightedIndex]?.scrollIntoView({ block: 'nearest' })

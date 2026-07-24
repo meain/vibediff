@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import type { DiffType, ViewMode, FileDiff as FileDiffType } from '../types/diff'
+import type { DiffType, ViewMode, FileDiff as FileDiffType, Comment, Revision } from '../types/diff'
 import { useDiff } from '../hooks/useDiff'
 import { useComments } from '../hooks/useComments'
 import { useAllComments } from '../hooks/useAllComments'
@@ -65,6 +65,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
   const [showCommandPalette, setShowCommandPalette] = useState(false)
+  const [directoryAddError, setDirectoryAddError] = useState<string | null>(null)
   const [selectedRevision, setSelectedRevision] = useState<string | null>(() => {
     const params = new URLSearchParams(window.location.search)
     return params.get('rev')
@@ -362,7 +363,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedFile, reviewedFiles])
 
-  const handleSingleFileAddReply = useCallback(async (parent: import('../types/diff').Comment, content: string) => {
+  const handleSingleFileAddReply = useCallback(async (parent: Comment, content: string) => {
     await addComment(parent.file, parent.line, content, parent.lineEnd, parent.id)
   }, [addComment])
 
@@ -377,11 +378,14 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
   }, [commentDialog, addComment])
 
 
-  const selectedRevisionData = selectedRevision
-    ? revisions.find(r => r.id === selectedRevision) ?? null
-    : backend === 'jj'
-      ? revisions.find(r => r.isWorkingCopy) ?? null
-      : null
+  let selectedRevisionData: Revision | null
+  if (selectedRevision) {
+    selectedRevisionData = revisions.find(r => r.id === selectedRevision) ?? null
+  } else if (backend === 'jj') {
+    selectedRevisionData = revisions.find(r => r.isWorkingCopy) ?? null
+  } else {
+    selectedRevisionData = null
+  }
 
   const diffTotals = data
     ? data.files.reduce(
@@ -658,15 +662,22 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
         },
       }
     })
-    if (directoryChildren.length > 1) {
-      items.push({
-        id: 'switch-directory',
-        section: 'Navigate',
-        label: 'Switch directory…',
-        icon: <FolderIcon />,
-        children: directoryChildren,
-      })
-    }
+    items.push({
+      id: 'switch-directory',
+      section: 'Navigate',
+      label: 'Switch directory…',
+      icon: <FolderIcon />,
+      children: directoryChildren,
+      freeTextLabel: (text) => `Add directory "${text}"`,
+      onFreeText: (text) => {
+        void registerDirectory(text).then(() => {
+          setSelectedRevision(null)
+          setSelectedFile(null)
+        }).catch((err: unknown) => {
+          setDirectoryAddError(err instanceof Error ? err.message : 'Failed to add directory')
+        })
+      },
+    })
 
     return items
   }, [
@@ -674,7 +685,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
     isDark, toggleDark, backend, selectedRevision, diffType, pendingThreads, comments.length,
     formatPendingCommentsForExport, revisions, formatCommentsForExport, handleClearComments,
     handleClearReviewed, selectedFile, reviewedFiles, handleToggleReviewed, goToPreviousCommit,
-    goToNextCommit, data, directories, currentDirectory, setCurrentDirectory,
+    goToNextCommit, data, directories, currentDirectory, setCurrentDirectory, registerDirectory,
   ])
 
   // Only show the full-screen loading spinner on the very first load (no
@@ -923,7 +934,6 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
           />
         )}
         {(() => {
-          // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
           if (loading) {
             return (
               <div className="flex items-center justify-center h-full">
@@ -1069,6 +1079,9 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
       {/* Error Toast */}
       {fetchError !== null && (
         <Toast message={fetchError} onDismiss={clearFetchError} type="error" />
+      )}
+      {directoryAddError !== null && (
+        <Toast message={directoryAddError} onDismiss={() => { setDirectoryAddError(null); }} type="error" />
       )}
     </>
   )
