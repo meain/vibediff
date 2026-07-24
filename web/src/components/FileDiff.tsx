@@ -173,12 +173,14 @@ function FileDiff({
   const [fullDiff, setFullDiff] = useState<FileDiffType | null>(null)
   const [isLoadingFull, setIsLoadingFull] = useState(false)
   const [gapExpansions, setGapExpansions] = useState<Record<string, GapExpansion>>({})
-  const pendingExpandRef = useRef<{ gapKey: string; direction: 'up' | 'down' | 'all' } | null>(null)
+  const pendingExpandRef = useRef<Array<{ gapKey: string; direction: 'up' | 'down' | 'all' }>>([])
+  const isFetchingFullDiffRef = useRef(false)
 
   useEffect(() => {
     setFullDiff(null)
     setGapExpansions({})
-    pendingExpandRef.current = null
+    pendingExpandRef.current = []
+    isFetchingFullDiffRef.current = false
   }, [file])
 
   const fullLineMap = useMemo(() => {
@@ -252,7 +254,8 @@ function FileDiff({
   }, [gapInfos])
 
   const fetchFullDiff = useCallback(async (): Promise<void> => {
-    if (isLoadingFull || fullDiff) return
+    if (isFetchingFullDiffRef.current || fullDiff) return
+    isFetchingFullDiffRef.current = true
     setIsLoadingFull(true)
     try {
       const params = new URLSearchParams()
@@ -271,9 +274,10 @@ function FileDiff({
     } catch (err) {
       console.error('Failed to fetch full diff:', err)
     } finally {
+      isFetchingFullDiffRef.current = false
       setIsLoadingFull(false)
     }
-  }, [isLoadingFull, fullDiff, selectedRevision, diffType, file.path, directory])
+  }, [fullDiff, selectedRevision, diffType, file.path, directory])
 
   const applyExpansion = useCallback((gapKey: string, direction: 'up' | 'down') => {
     setGapExpansions(prev => {
@@ -296,13 +300,15 @@ function FileDiff({
   }, [])
 
   useEffect(() => {
-    if (fullDiff && pendingExpandRef.current) {
-      const { gapKey, direction } = pendingExpandRef.current
-      pendingExpandRef.current = null
-      if (direction === 'all') {
-        applyExpansionAll(gapKey)
-      } else {
-        applyExpansion(gapKey, direction)
+    if (fullDiff && pendingExpandRef.current.length > 0) {
+      const pending = pendingExpandRef.current
+      pendingExpandRef.current = []
+      for (const { gapKey, direction } of pending) {
+        if (direction === 'all') {
+          applyExpansionAll(gapKey)
+        } else {
+          applyExpansion(gapKey, direction)
+        }
       }
     }
   }, [fullDiff, applyExpansion, applyExpansionAll])
@@ -311,7 +317,7 @@ function FileDiff({
     if (fullDiff) {
       applyExpansion(gapKey, direction)
     } else {
-      pendingExpandRef.current = { gapKey, direction }
+      pendingExpandRef.current.push({ gapKey, direction })
       void fetchFullDiff()
     }
   }, [fullDiff, applyExpansion, fetchFullDiff])
@@ -320,7 +326,7 @@ function FileDiff({
     if (fullDiff) {
       applyExpansionAll(gapKey)
     } else {
-      pendingExpandRef.current = { gapKey, direction: 'all' }
+      pendingExpandRef.current.push({ gapKey, direction: 'all' })
       void fetchFullDiff()
     }
   }, [fullDiff, applyExpansionAll, fetchFullDiff])

@@ -124,7 +124,7 @@ describe('FileDiff hidden-line expansion', () => {
     render(<FileDiff {...baseProps(file, { onAddComment })} />)
 
     const banner = scopeFromHiddenLabel('34 lines hidden')
-    fireEvent.click(within(banner).getByRole('button', { name: '↓ Expand down' }))
+    fireEvent.click(within(banner).getByRole('button', { name: 'Expand' }))
 
     await waitFor(() => {
       expect(queryLineRow(20)).not.toBeNull()
@@ -145,7 +145,7 @@ describe('FileDiff hidden-line expansion', () => {
     render(<FileDiff {...baseProps(file, { onAddComment })} />)
 
     const banner = scopeFromHiddenLabel('34 lines hidden')
-    fireEvent.click(within(banner).getByRole('button', { name: '↓ Expand down' }))
+    fireEvent.click(within(banner).getByRole('button', { name: 'Expand' }))
 
     await waitFor(() => {
       expect(queryLineRow(22)).not.toBeNull()
@@ -166,7 +166,7 @@ describe('FileDiff hidden-line expansion', () => {
     render(<FileDiff {...baseProps(file, { onAddComment })} />)
 
     const banner = scopeFromHiddenLabel('34 lines hidden')
-    fireEvent.click(within(banner).getByRole('button', { name: '↓ Expand down' }))
+    fireEvent.click(within(banner).getByRole('button', { name: 'Expand' }))
 
     await waitFor(() => {
       expect(queryLineRow(20)).not.toBeNull()
@@ -203,7 +203,7 @@ describe('FileDiff hidden-line expansion', () => {
     expect(screen.queryByText('existing comment text')).not.toBeInTheDocument()
 
     const banner = scopeFromHiddenLabel('34 lines hidden')
-    fireEvent.click(within(banner).getByRole('button', { name: '↓ Expand down' }))
+    fireEvent.click(within(banner).getByRole('button', { name: 'Expand' }))
 
     await waitFor(() => {
       expect(screen.getByText('existing comment text')).toBeInTheDocument()
@@ -245,7 +245,7 @@ describe('FileDiff hidden-line expansion', () => {
     render(<FileDiff {...baseProps(file)} />)
 
     const banner = scopeFromHiddenLabel('8 lines hidden')
-    fireEvent.click(within(banner).getByRole('button', { name: '⇕ Expand all' }))
+    fireEvent.click(within(banner).getByRole('button', { name: 'Expand all' }))
 
     await waitFor(() => {
       for (let n = 6; n <= 13; n++) {
@@ -254,9 +254,8 @@ describe('FileDiff hidden-line expansion', () => {
     })
 
     expect(screen.queryByText((content) => content.includes('lines hidden'))).not.toBeInTheDocument()
-    expect(screen.queryAllByRole('button', { name: '↓ Expand down' })).toHaveLength(0)
-    expect(screen.queryAllByRole('button', { name: '↑ Expand up' })).toHaveLength(0)
-    expect(screen.queryAllByRole('button', { name: '⇕ Expand all' })).toHaveLength(0)
+    expect(screen.queryAllByRole('button', { name: 'Expand' })).toHaveLength(0)
+    expect(screen.queryAllByRole('button', { name: 'Expand all' })).toHaveLength(0)
     expect(screen.getAllByRole('button', { name: 'Collapse' })).toHaveLength(1)
   })
 
@@ -283,13 +282,13 @@ describe('FileDiff hidden-line expansion', () => {
     render(<FileDiff {...baseProps(file)} />)
 
     const banner = scopeFromHiddenLabel('25 lines hidden')
-    fireEvent.click(within(banner).getByRole('button', { name: '↓ Expand down' }))
+    fireEvent.click(within(banner).getByRole('button', { name: 'Expand' }))
 
     await waitFor(() => {
       expect(queryLineRow(15)).not.toBeNull()
     })
 
-    fireEvent.click(within(banner).getByRole('button', { name: '⇕ Expand all' }))
+    fireEvent.click(within(banner).getByRole('button', { name: 'Expand all' }))
 
     await waitFor(() => {
       for (let n = 16; n <= 30; n++) {
@@ -321,7 +320,7 @@ describe('FileDiff hidden-line expansion', () => {
 
     expect(fetchMock).not.toHaveBeenCalled()
 
-    fireEvent.click(screen.getByRole('button', { name: '⇕ Expand all' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Expand all' }))
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
     const calledUrl = String(fetchMock.mock.calls[0][0])
@@ -358,7 +357,7 @@ describe('FileDiff hidden-line expansion', () => {
     render(<FileDiff {...baseProps(file)} />)
 
     const banner = scopeFromHiddenLabel('8 lines hidden')
-    fireEvent.click(within(banner).getByRole('button', { name: '⇕ Expand all' }))
+    fireEvent.click(within(banner).getByRole('button', { name: 'Expand all' }))
 
     await waitFor(() => {
       for (let n = 6; n <= 13; n++) {
@@ -375,9 +374,8 @@ describe('FileDiff hidden-line expansion', () => {
     })
 
     expect(screen.getByText((content) => content.trim() === '8 lines hidden')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '↓ Expand down' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '↑ Expand up' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '⇕ Expand all' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Expand' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Expand all' })).toBeInTheDocument()
   })
 })
 
@@ -414,7 +412,7 @@ describe('FileDiff hidden-line expansion -- split view & wiring gaps (Phase 3b)'
     render(<FileDiff {...baseProps(file, { viewMode: 'split', onAddComment })} />)
 
     const banner = scopeFromHiddenLabel('34 lines hidden')
-    fireEvent.click(within(banner).getByRole('button', { name: '↓ Expand down' }))
+    fireEvent.click(within(banner).getByRole('button', { name: 'Expand' }))
 
     await waitFor(() => {
       expect(queryLineRow(20)).not.toBeNull()
@@ -442,7 +440,7 @@ describe('FileDiff hidden-line expansion -- split view & wiring gaps (Phase 3b)'
     render(<FileDiff {...baseProps(file, { viewMode: 'split', onAddComment })} />)
 
     const banner = scopeFromHiddenLabel('34 lines hidden')
-    fireEvent.click(within(banner).getByRole('button', { name: '↓ Expand down' }))
+    fireEvent.click(within(banner).getByRole('button', { name: 'Expand' }))
 
     await waitFor(() => {
       expect(queryLineRow(20)).not.toBeNull()
@@ -480,21 +478,21 @@ describe('FileDiff hidden-line expansion -- split view & wiring gaps (Phase 3b)'
       render(<FileDiff {...baseProps(file, { viewMode: 'split' })} />)
 
       // Three gaps: leading (1-19), between (26-59), trailing (66-100).
-      expect(screen.getAllByRole('button', { name: '⇕ Expand all' })).toHaveLength(3)
+      expect(screen.getAllByRole('button', { name: 'Expand all' })).toHaveLength(3)
 
-      fireEvent.click(screen.getAllByRole('button', { name: '⇕ Expand all' })[0])
+      fireEvent.click(screen.getAllByRole('button', { name: 'Expand all' })[0])
       await waitFor(() => {
-        expect(screen.getAllByRole('button', { name: '⇕ Expand all' })).toHaveLength(2)
+        expect(screen.getAllByRole('button', { name: 'Expand all' })).toHaveLength(2)
       })
 
-      fireEvent.click(screen.getAllByRole('button', { name: '⇕ Expand all' })[0])
+      fireEvent.click(screen.getAllByRole('button', { name: 'Expand all' })[0])
       await waitFor(() => {
-        expect(screen.getAllByRole('button', { name: '⇕ Expand all' })).toHaveLength(1)
+        expect(screen.getAllByRole('button', { name: 'Expand all' })).toHaveLength(1)
       })
 
-      fireEvent.click(screen.getAllByRole('button', { name: '⇕ Expand all' })[0])
+      fireEvent.click(screen.getAllByRole('button', { name: 'Expand all' })[0])
       await waitFor(() => {
-        expect(screen.queryAllByRole('button', { name: '⇕ Expand all' })).toHaveLength(0)
+        expect(screen.queryAllByRole('button', { name: 'Expand all' })).toHaveLength(0)
       })
 
       // All lines from every gap plus both hunks should now be present.
@@ -533,10 +531,13 @@ describe('FileDiff hidden-line expansion -- split view & wiring gaps (Phase 3b)'
     render(<FileDiff {...baseProps(file)} />)
 
     const banner = scopeFromHiddenLabel('19 lines hidden')
-    expect(within(banner).getByRole('button', { name: '↑ Expand up' })).toBeInTheDocument()
-    expect(within(banner).queryByRole('button', { name: '↓ Expand down' })).not.toBeInTheDocument()
+    expect(within(banner).getByRole('button', { name: 'Expand' })).toBeInTheDocument()
+    // Only one direction is possible before the first hunk, so there's a
+    // single combined "Expand" button plus "Expand all" -- no separate
+    // up/down buttons.
+    expect(within(banner).getAllByRole('button')).toHaveLength(2)
 
-    fireEvent.click(within(banner).getByRole('button', { name: '↑ Expand up' }))
+    fireEvent.click(within(banner).getByRole('button', { name: 'Expand' }))
 
     await waitFor(() => {
       for (let n = 10; n <= 19; n++) {
@@ -557,7 +558,7 @@ describe('FileDiff hidden-line expansion -- split view & wiring gaps (Phase 3b)'
     render(<FileDiff {...baseProps(file, { getCommentRangeLines })} />)
 
     const banner = scopeFromHiddenLabel('34 lines hidden')
-    fireEvent.click(within(banner).getByRole('button', { name: '↓ Expand down' }))
+    fireEvent.click(within(banner).getByRole('button', { name: 'Expand' }))
 
     await waitFor(() => {
       expect(queryLineRow(18)).not.toBeNull()
@@ -584,7 +585,7 @@ describe('FileDiff hidden-line expansion -- split view & wiring gaps (Phase 3b)'
     render(<FileDiff {...baseProps(file, { getCommentsForLine, onResolveComment, onReopenComment })} />)
 
     const banner = scopeFromHiddenLabel('34 lines hidden')
-    fireEvent.click(within(banner).getByRole('button', { name: '↓ Expand down' }))
+    fireEvent.click(within(banner).getByRole('button', { name: 'Expand' }))
 
     await waitFor(() => {
       expect(screen.getByText('open comment')).toBeInTheDocument()
@@ -614,7 +615,7 @@ describe('FileDiff hidden-line expansion -- split view & wiring gaps (Phase 3b)'
     expect(screen.queryByPlaceholderText('Leave a comment...')).not.toBeInTheDocument()
 
     const banner = scopeFromHiddenLabel('34 lines hidden')
-    fireEvent.click(within(banner).getByRole('button', { name: '↓ Expand down' }))
+    fireEvent.click(within(banner).getByRole('button', { name: 'Expand' }))
 
     await waitFor(() => {
       expect(screen.getByPlaceholderText('Leave a comment...')).toBeInTheDocument()
@@ -645,7 +646,7 @@ describe('FileDiff hidden-line expansion -- split view & wiring gaps (Phase 3b)'
     render(<FileDiff {...baseProps(file, { viewMode: 'split' })} />)
 
     const banner = scopeFromHiddenLabel('8 lines hidden')
-    fireEvent.click(within(banner).getByRole('button', { name: '⇕ Expand all' }))
+    fireEvent.click(within(banner).getByRole('button', { name: 'Expand all' }))
 
     await waitFor(() => {
       for (let n = 6; n <= 13; n++) {
@@ -654,9 +655,8 @@ describe('FileDiff hidden-line expansion -- split view & wiring gaps (Phase 3b)'
     })
 
     expect(screen.queryByText((content) => content.includes('lines hidden'))).not.toBeInTheDocument()
-    expect(screen.queryAllByRole('button', { name: '↓ Expand down' })).toHaveLength(0)
-    expect(screen.queryAllByRole('button', { name: '↑ Expand up' })).toHaveLength(0)
-    expect(screen.queryAllByRole('button', { name: '⇕ Expand all' })).toHaveLength(0)
+    expect(screen.queryAllByRole('button', { name: 'Expand' })).toHaveLength(0)
+    expect(screen.queryAllByRole('button', { name: 'Expand all' })).toHaveLength(0)
     expect(screen.getAllByRole('button', { name: 'Collapse' })).toHaveLength(1)
   })
 
@@ -683,13 +683,13 @@ describe('FileDiff hidden-line expansion -- split view & wiring gaps (Phase 3b)'
     render(<FileDiff {...baseProps(file, { viewMode: 'split' })} />)
 
     const banner = scopeFromHiddenLabel('25 lines hidden')
-    fireEvent.click(within(banner).getByRole('button', { name: '↓ Expand down' }))
+    fireEvent.click(within(banner).getByRole('button', { name: 'Expand' }))
 
     await waitFor(() => {
       expect(queryLineRow(15)).not.toBeNull()
     })
 
-    fireEvent.click(within(banner).getByRole('button', { name: '⇕ Expand all' }))
+    fireEvent.click(within(banner).getByRole('button', { name: 'Expand all' }))
 
     await waitFor(() => {
       for (let n = 16; n <= 30; n++) {
@@ -721,7 +721,7 @@ describe('FileDiff hidden-line expansion -- split view & wiring gaps (Phase 3b)'
 
     expect(fetchMock).not.toHaveBeenCalled()
 
-    fireEvent.click(screen.getByRole('button', { name: '⇕ Expand all' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Expand all' }))
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
     const calledUrl = String(fetchMock.mock.calls[0][0])
@@ -758,7 +758,7 @@ describe('FileDiff hidden-line expansion -- split view & wiring gaps (Phase 3b)'
     render(<FileDiff {...baseProps(file, { viewMode: 'split' })} />)
 
     const banner = scopeFromHiddenLabel('8 lines hidden')
-    fireEvent.click(within(banner).getByRole('button', { name: '⇕ Expand all' }))
+    fireEvent.click(within(banner).getByRole('button', { name: 'Expand all' }))
 
     await waitFor(() => {
       for (let n = 6; n <= 13; n++) {
@@ -775,9 +775,8 @@ describe('FileDiff hidden-line expansion -- split view & wiring gaps (Phase 3b)'
     })
 
     expect(screen.getByText((content) => content.trim() === '8 lines hidden')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '↓ Expand down' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '↑ Expand up' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '⇕ Expand all' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Expand' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Expand all' })).toBeInTheDocument()
   })
 
   it('21. split view: renders a comment anchored to a hidden line only once it is revealed', async () => {
@@ -804,7 +803,7 @@ describe('FileDiff hidden-line expansion -- split view & wiring gaps (Phase 3b)'
     expect(screen.queryByText('existing comment text')).not.toBeInTheDocument()
 
     const banner = scopeFromHiddenLabel('34 lines hidden')
-    fireEvent.click(within(banner).getByRole('button', { name: '↓ Expand down' }))
+    fireEvent.click(within(banner).getByRole('button', { name: 'Expand' }))
 
     await waitFor(() => {
       expect(screen.getByText('existing comment text')).toBeInTheDocument()
@@ -827,7 +826,7 @@ describe('FileDiff hidden-line expansion -- split view & wiring gaps (Phase 3b)'
     render(<FileDiff {...baseProps(file, { viewMode: 'split', getCommentsForLine, onResolveComment, onReopenComment })} />)
 
     const banner = scopeFromHiddenLabel('34 lines hidden')
-    fireEvent.click(within(banner).getByRole('button', { name: '↓ Expand down' }))
+    fireEvent.click(within(banner).getByRole('button', { name: 'Expand' }))
 
     await waitFor(() => {
       expect(screen.getByText('open comment')).toBeInTheDocument()
@@ -858,7 +857,7 @@ describe('FileDiff hidden-line expansion -- split view & wiring gaps (Phase 3b)'
     expect(screen.queryByPlaceholderText('Leave a comment...')).not.toBeInTheDocument()
 
     const banner = scopeFromHiddenLabel('34 lines hidden')
-    fireEvent.click(within(banner).getByRole('button', { name: '↓ Expand down' }))
+    fireEvent.click(within(banner).getByRole('button', { name: 'Expand' }))
 
     await waitFor(() => {
       expect(screen.getByPlaceholderText('Leave a comment...')).toBeInTheDocument()
