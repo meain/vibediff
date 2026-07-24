@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { FolderIcon, ChevronDownIcon, Cog6ToothIcon } from '@heroicons/react/24/solid'
 import type { DirectoryEntry } from '../hooks/useDirectory'
@@ -40,12 +40,15 @@ export default function DirectorySwitcher({
   const [editingPath, setEditingPath] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
   const [copiedPath, setCopiedPath] = useState<string | null>(null)
+  const [highlightedIndex, setHighlightedIndex] = useState(0)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const validationTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const editInputRef = useRef<HTMLInputElement>(null)
   const openMenuRef = useRef<HTMLDivElement>(null)
   const gearButtonRef = useRef<HTMLButtonElement>(null)
+  const rowRefs = useRef<(HTMLDivElement | null)[]>([])
+  const filterInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -71,8 +74,26 @@ export default function DirectorySwitcher({
     if (isOpen && triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect()
       setMenuPos({ top: rect.bottom + 4, left: rect.left })
+      setInputValue('')
+      setHighlightedIndex(0)
     }
   }, [isOpen])
+
+  // Reset the highlighted row whenever the filter text changes.
+  useEffect(() => {
+    setHighlightedIndex(0)
+  }, [inputValue])
+
+  // Focus the filter input once the dropdown has actually mounted.
+  useEffect(() => {
+    if (isOpen && menuPos) {
+      filterInputRef.current?.focus()
+    }
+  }, [isOpen, menuPos])
+
+  useEffect(() => {
+    rowRefs.current[highlightedIndex]?.scrollIntoView({ block: 'nearest' })
+  }, [highlightedIndex])
 
   // Close the gear menu on scroll of the (scrollable) directory list, rather
   // than trying to keep a fixed-position portal glued to a moving row.
@@ -131,9 +152,24 @@ export default function DirectorySwitcher({
     setOrderedDirs(directories)
   }, [directories])
 
+  const isFiltering = inputValue.trim().length > 0
+  const filteredDirs = useMemo(() => {
+    const query = inputValue.trim().toLowerCase()
+    if (!query) return orderedDirs
+    return orderedDirs.filter(d =>
+      d.path.toLowerCase().includes(query) || d.alias?.toLowerCase().includes(query)
+    )
+  }, [orderedDirs, inputValue])
+
+  // Keep the highlighted row in range if the list shrinks (directory removed, filter narrows).
+  useEffect(() => {
+    setHighlightedIndex(i => Math.min(i, Math.max(filteredDirs.length - 1, 0)))
+  }, [filteredDirs.length])
+
   // Alias-aware: prefers entry.alias over entry.path, then applies the same
   // homeDir substitution + truncation as before.
   const formatPath = useCallback((entry: DirectoryEntry, maxLength = 40) => {
+    // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- empty-string alias means "unset", so fall back to path
     let formatted = entry.alias || entry.path
     if (homeDir && formatted.startsWith(homeDir)) {
       formatted = '~' + formatted.slice(homeDir.length)
@@ -152,7 +188,7 @@ export default function DirectorySwitcher({
 
   const startEditingAlias = (entry: DirectoryEntry): void => {
     setEditingPath(entry.path)
-    setEditValue(entry.alias)
+    setEditValue(entry.alias ?? '')
     setOpenMenuPath(null)
   }
 
@@ -230,50 +266,68 @@ export default function DirectorySwitcher({
         <div
           ref={dropdownRef}
           style={{ top: menuPos.top, left: menuPos.left }}
-          className="fixed w-[500px] bg-surface-raised border border-edge rounded-lg shadow-xl z-50 max-h-[400px] overflow-auto">
-          {/* Add new directory */}
-          <div className="p-3 border-b border-edge">
-            <div className="text-xs font-semibold text-fg-muted mb-2">Add Directory</div>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') void handleAdd() }}
-                placeholder="Enter directory path..."
-                className="flex-1 px-3 py-1.5 border border-edge rounded text-sm bg-surface text-fg placeholder:text-fg-subtle focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-              />
+          className="fixed w-[500px] bg-surface-raised border border-edge rounded-lg shadow-xl z-50 flex flex-col max-h-[400px]">
+          {/* Filter existing directories / add a new one */}
+          <div className="shrink-0 flex gap-2 p-2 border-b border-edge">
+            <input
+              type="text"
+              ref={filterInputRef}
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'ArrowDown') {
+                  e.preventDefault()
+                  if (filteredDirs.length > 0) setHighlightedIndex(i => Math.min(i + 1, filteredDirs.length - 1))
+                } else if (e.key === 'ArrowUp') {
+                  e.preventDefault()
+                  if (filteredDirs.length > 0) setHighlightedIndex(i => Math.max(i - 1, 0))
+                } else if (e.key === 'Enter') {
+                  e.preventDefault()
+                  if (filteredDirs.length > 0) {
+                    onSelectDirectory(filteredDirs[highlightedIndex].path)
+                    setIsOpen(false)
+                  } else {
+                    void handleAdd()
+                  }
+                }
+              }}
+              placeholder="Filter or add a directory…"
+              className="flex-1 px-2 py-1.5 text-xs bg-surface-inset text-fg placeholder:text-fg-subtle border-b border-edge focus:outline-none focus:border-accent"
+            />
+            {inputValue && (
               <button
                 onClick={() => void handleAdd()}
-                disabled={!inputValue || !!validationError || isValidating || isAdding}
+                disabled={!!validationError || isValidating || isAdding}
                 className="px-3 py-1.5 bg-accent text-accent-fg border border-accent rounded text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-accent-emphasis transition-colors"
               >
                 {isAdding ? 'Adding...' : 'Add'}
               </button>
-            </div>
-            {isValidating && (
-              <div className="mt-2 text-xs text-fg-muted">Validating...</div>
-            )}
-            {validationError && (
-              <div className="mt-2 text-xs text-danger">{validationError}</div>
             )}
           </div>
+          {validationError && (
+            <div className="shrink-0 px-2 pt-2 text-xs text-danger">{validationError}</div>
+          )}
 
           {/* Registered directories */}
-          {orderedDirs.length > 0 ? (
-            <div className="p-2">
-              <div className="text-xs font-semibold text-fg-muted mb-2 px-2">Registered Directories</div>
-              {orderedDirs.map((dir, index) => (
+          {filteredDirs.length > 0 ? (
+            <div className="flex-1 min-h-0 overflow-auto p-2">
+              {filteredDirs.map((dir, index) => {
+                let rowBgClass = 'hover:bg-surface-inset'
+                if (dir.path === currentDirectory) rowBgClass = 'bg-accent-muted'
+                else if (index === highlightedIndex) rowBgClass = 'bg-surface-inset'
+                return (
                 <div
                   key={dir.path}
-                  draggable={editingPath !== dir.path}
+                  ref={(el) => { rowRefs.current[index] = el }}
+                  draggable={editingPath !== dir.path && !isFiltering}
                   onDragStart={() => handleDragStart(index)}
                   onDragOver={(e) => handleDragOver(e, index)}
                   onDrop={(e) => handleDrop(e, index)}
                   onDragEnd={handleDragEnd}
+                  onMouseEnter={() => setHighlightedIndex(index)}
                   className={`relative flex items-center justify-between px-2 py-1.5 rounded group transition-colors cursor-grab active:cursor-grabbing ${
                     dragOverIndex === index && dragIndex !== index ? 'border-t-2 border-accent' : ''
-                  } ${dir.path === currentDirectory ? 'bg-accent-muted' : 'hover:bg-surface-inset'} ${
+                  } ${rowBgClass} ${
                     dragIndex === index ? 'opacity-40' : ''
                   }`}
                 >
@@ -383,11 +437,12 @@ export default function DirectorySwitcher({
                     </>
                   )}
                 </div>
-              ))}
+                )
+              })}
             </div>
           ) : (
-            <div className="p-4 text-sm text-fg-muted text-center">
-              No registered directories
+            <div className="flex-1 min-h-0 overflow-auto p-4 text-sm text-fg-muted text-center">
+              {isFiltering ? 'No directories match' : 'No registered directories'}
             </div>
           )}
         </div>,

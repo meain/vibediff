@@ -9,7 +9,7 @@ interface DirectoryInfo {
 /** A registered directory: `path` is the sole identity used everywhere else (API calls, URL param, reorder, remove); `alias` is an optional persisted display label. */
 export interface DirectoryEntry {
   path: string
-  alias: string
+  alias?: string
 }
 
 interface UseDirectoryReturn {
