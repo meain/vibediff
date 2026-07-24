@@ -127,6 +127,7 @@ interface FileDiffProps {
   onResolveComment?: (id: string) => Promise<void>
   onReopenComment?: (id: string) => Promise<void>
   hideViewFullFile?: boolean
+  onClose?: () => void
   wrapLines?: boolean
   diffType?: DiffType
   selectedRevision?: string | null
@@ -155,6 +156,7 @@ function FileDiff({
   onResolveComment,
   onReopenComment,
   hideViewFullFile = false,
+  onClose,
   wrapLines = false,
   diffType = 'all',
   selectedRevision = null,
@@ -617,6 +619,15 @@ function FileDiff({
               className="px-3 py-[3px] text-xs font-medium bg-surface-inset text-fg border border-edge rounded-md hover:bg-edge transition-colors cursor-pointer"
             >
               View full file
+            </button>
+          )}
+
+          {onClose && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onClose(); }}
+              className="px-3 py-[3px] text-xs font-medium bg-surface-inset text-fg border border-edge rounded-md hover:bg-edge transition-colors cursor-pointer"
+            >
+              Close
             </button>
           )}
         </div>

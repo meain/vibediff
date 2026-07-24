@@ -2,7 +2,6 @@ import { useEffect, useState, useCallback } from 'react'
 import type { DiffType, FileDiff, Comment } from '../types/diff'
 import FileDiffComponent from './FileDiff'
 import CommentDialog from './CommentDialog'
-import CopyButton from './CopyButton'
 
 interface FullFileModalProps {
   isOpen: boolean
@@ -84,25 +83,16 @@ export default function FullFileModal({ isOpen, filePath, directory, onClose, vi
         className={`bg-surface rounded-lg shadow-2xl w-[90%] h-[90%] flex flex-col ${viewMode === 'split' ? 'max-w-[95%] w-[95%]' : 'max-w-[1200px]'}`}
         onClick={(e) => { e.stopPropagation(); }}
       >
-        {/* Header */}
-        <div className="px-4 py-4 border-b border-edge flex items-center justify-between">
-          <h3 className="text-base font-semibold text-fg flex items-center gap-1.5">
-            <span>Full file:</span>
-            <span className="select-text cursor-text">{filePath}</span>
-            <CopyButton value={filePath} title="Copy file path" />
-          </h3>
-          <button
-            onClick={onClose}
-            className="px-3 py-[3px] text-xs font-medium bg-surface-inset text-fg
-              border border-edge rounded-md
-              hover:bg-edge transition-colors cursor-pointer"
-          >
-            Close
-          </button>
-        </div>
-
         {/* Content */}
-        <div className="flex-1 overflow-auto" style={{ overscrollBehavior: 'contain' }}>
+        <div className="flex-1 overflow-auto rounded-lg relative" style={{ overscrollBehavior: 'contain' }}>
+          {(loading || error || !fileData) && (
+            <button
+              onClick={onClose}
+              className="absolute top-3 right-3 px-3 py-[3px] text-xs font-medium bg-surface-inset text-fg border border-edge rounded-md hover:bg-edge transition-colors cursor-pointer"
+            >
+              Close
+            </button>
+          )}
           {(() => {
             if (loading) {
               return (
@@ -143,6 +133,7 @@ export default function FullFileModal({ isOpen, filePath, directory, onClose, vi
                 onResolveComment={onResolveComment}
                 onReopenComment={onReopenComment}
                 hideViewFullFile={true}
+                onClose={onClose}
                 wrapLines={wrapLines}
               />
             )

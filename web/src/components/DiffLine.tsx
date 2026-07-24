@@ -32,7 +32,7 @@ const AddCommentButton = ({ onDragStart }: { onDragStart?: () => void }): React.
       e.preventDefault()
       onDragStart?.()
     }}
-    className="absolute -left-[26px] top-0 w-[22px] h-5 bg-accent text-accent-fg rounded-[3px] text-base leading-5 cursor-pointer hidden group-hover:block hover:bg-accent-emphasis hover:scale-110 transition-transform p-0"
+    className="absolute -left-[50px] top-0 w-[50px] h-5 bg-accent text-accent-fg text-base leading-5 cursor-pointer hidden group-hover:flex items-center justify-center hover:bg-accent-emphasis transition-colors p-0"
   >
     +
   </button>
