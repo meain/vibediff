@@ -34,7 +34,6 @@ import {
   ChevronUpIcon,
   ChevronDownIcon,
   ArrowsPointingOutIcon,
-  QuestionMarkCircleIcon,
 } from '@heroicons/react/24/outline'
 import { Group, Panel, Separator } from 'react-resizable-panels'
 import FileList from './FileList'
@@ -455,80 +454,24 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
   const commandItems = useMemo<CommandItem[]>(() => {
     const items: CommandItem[] = []
 
-    items.push({
-      id: 'toggle-wrap-lines',
-      section: 'Actions',
-      label: 'Toggle line wrapping',
-      description: `Currently: ${wrapLines ? 'on' : 'off'}`,
-      icon: <Bars3BottomLeftIcon />,
-      action: () => { setWrapLines(w => !w); },
-    })
-    items.push({
-      id: 'toggle-view-mode',
-      section: 'Actions',
-      label: 'Toggle unified/split view',
-      description: `Currently: ${viewMode} view`,
-      icon: viewMode === 'unified' ? <ViewColumnsIcon /> : <Bars3Icon />,
-      action: () => { setViewMode(viewMode === 'unified' ? 'split' : 'unified'); },
-    })
-    items.push({
-      id: 'toggle-display-mode',
-      section: 'Actions',
-      label: 'Toggle single/all file view',
-      description: `Currently: ${displayMode === 'single' ? 'single file' : 'all files'}`,
-      icon: displayMode === 'single' ? <DocumentDuplicateIcon /> : <DocumentIcon />,
-      action: () => { setDisplayMode(displayMode === 'single' ? 'all' : 'single'); },
-    })
-    items.push({
-      id: 'toggle-collapse-all',
-      section: 'Actions',
-      label: allFilesCollapsed ? 'Expand all files' : 'Collapse all files',
-      icon: allFilesCollapsed ? <ChevronDoubleDownIcon /> : <ChevronDoubleUpIcon />,
-      action: toggleAllCollapse,
-    })
-    items.push({
-      id: 'toggle-file-tree-view',
-      section: 'Actions',
-      label: 'Toggle list/tree file view',
-      description: `Currently: ${fileViewMode}`,
-      icon: fileViewMode === 'list' ? <FolderIcon /> : <QueueListIcon />,
-      action: () => { setFileViewMode(fileViewMode === 'list' ? 'tree' : 'list'); },
-    })
-    items.push({
-      id: 'toggle-show-comments',
-      section: 'Actions',
-      label: 'Toggle comments visibility',
-      description: `Currently: ${showComments ? 'shown' : 'hidden'}`,
-      icon: showComments ? <EyeSlashIcon /> : <EyeIcon />,
-      action: () => { setShowComments(v => !v); },
-    })
-    items.push({
-      id: 'toggle-dark-mode',
-      section: 'Actions',
-      label: 'Toggle light/dark mode',
-      description: `Currently: ${isDark ? 'dark' : 'light'}`,
-      icon: isDark ? <SunIcon /> : <MoonIcon />,
-      action: toggleDark,
-    })
-    if (backend === 'git' && selectedRevision === null) {
-      const diffTypeLabels: Record<DiffType, string> = { all: 'Show all changes', staged: 'Show staged changes only', unstaged: 'Show unstaged changes only' }
-      const diffTypeIcons: Record<DiffType, React.ReactNode> = { all: <ListBulletIcon />, staged: <CheckCircleIcon />, unstaged: <ClockIcon /> }
-      for (const type of ['all', 'staged', 'unstaged'] as DiffType[]) {
-        if (type === diffType) continue
-        items.push({
-          id: `diff-type-${type}`,
-          section: 'Actions',
-          label: diffTypeLabels[type],
-          icon: diffTypeIcons[type],
-          action: () => { setDiffType(type); },
-        })
-      }
+    // Actions — most-used, per-file operations first so they surface immediately.
+    if (selectedFile) {
+      const file = selectedFile
+      items.push({
+        id: 'toggle-reviewed-current-file',
+        section: 'Actions',
+        label: reviewedFiles.has(file.path) ? 'Mark as not reviewed' : 'Mark as reviewed',
+        description: file.path,
+        hint: 'r',
+        icon: <CheckCircleIcon />,
+        action: () => { handleToggleReviewed(file); },
+      })
     }
     if (pendingThreads > 0) {
       items.push({
         id: 'copy-pending-comments',
         section: 'Actions',
-        label: 'Copy pending review comments',
+        label: 'Copy pending comments',
         icon: <ClipboardDocumentIcon />,
         action: () => {
           void navigator.clipboard.writeText(formatPendingCommentsForExport(revisions)).then(() => {
@@ -554,7 +497,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
       items.push({
         id: 'clear-comments',
         section: 'Actions',
-        label: 'Clear all comments',
+        label: 'Clear comments',
         icon: <TrashIcon />,
         action: handleClearComments,
       })
@@ -563,22 +506,14 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
       items.push({
         id: 'clear-reviewed',
         section: 'Actions',
-        label: 'Clear reviewed marks',
+        label: 'Clear reviewed',
+        description: `${String(reviewedFiles.size)} of ${String(data?.files.length ?? reviewedFiles.size)} files reviewed`,
         icon: <TrashIcon />,
         action: handleClearReviewed,
       })
     }
     if (selectedFile) {
       const file = selectedFile
-      items.push({
-        id: 'toggle-reviewed-current-file',
-        section: 'Actions',
-        label: reviewedFiles.has(file.path) ? 'Mark current file as not reviewed' : 'Mark current file as reviewed',
-        description: file.path,
-        hint: 'r',
-        icon: <CheckCircleIcon />,
-        action: () => { handleToggleReviewed(file); },
-      })
       items.push({
         id: 'view-full-file',
         section: 'Actions',
@@ -589,14 +524,13 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
       })
     }
     items.push({
-      id: 'show-help',
+      id: 'toggle-collapse-all',
       section: 'Actions',
-      label: 'Show keyboard shortcuts',
-      hint: '?',
-      icon: <QuestionMarkCircleIcon />,
-      action: () => { setShowHelp(true); },
+      label: allFilesCollapsed ? 'Expand all' : 'Collapse all',
+      icon: allFilesCollapsed ? <ChevronDoubleDownIcon /> : <ChevronDoubleUpIcon />,
+      action: toggleAllCollapse,
     })
-
+    // Navigation — moving between commits, files, and directories.
     const describeRevision = (rev: Revision): string => {
       const isWorkingCopyRow = !!rev.isWorkingCopy && backend === 'jj'
       return isWorkingCopyRow ? 'Working copy changes' : `${rev.shortId} ${rev.description || '(no description)'}`
@@ -614,7 +548,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
 
     items.push({
       id: 'nav-previous-commit',
-      section: 'Navigate',
+      section: 'Navigation',
       label: 'Previous commit',
       description: olderCommitDescription,
       icon: <ChevronDownIcon />,
@@ -622,7 +556,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
     })
     items.push({
       id: 'nav-next-commit',
-      section: 'Navigate',
+      section: 'Navigation',
       label: 'Next commit',
       description: newerCommitDescription,
       icon: <ChevronUpIcon />,
@@ -657,7 +591,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
     if (revisionChildren.length > 0) {
       items.push({
         id: 'change-revision',
-        section: 'Navigate',
+        section: 'Navigation',
         label: 'Change revision…',
         icon: <ClockIcon />,
         children: revisionChildren,
@@ -683,7 +617,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
       if (fileChildren.length > 0) {
         items.push({
           id: 'select-file',
-          section: 'Navigate',
+          section: 'Navigation',
           label: 'Select file…',
           icon: <DocumentIcon />,
           children: fileChildren,
@@ -710,7 +644,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
     })
     items.push({
       id: 'switch-directory',
-      section: 'Navigate',
+      section: 'Navigation',
       label: 'Switch directory…',
       icon: <FolderIcon />,
       children: directoryChildren,
@@ -724,6 +658,69 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
         })
       },
     })
+
+    // Settings — view preferences, least frequently changed.
+    items.push({
+      id: 'toggle-wrap-lines',
+      section: 'Settings',
+      label: 'Toggle line wrapping',
+      description: `Currently: ${wrapLines ? 'on' : 'off'}`,
+      icon: <Bars3BottomLeftIcon />,
+      action: () => { setWrapLines(w => !w); },
+    })
+    items.push({
+      id: 'toggle-view-mode',
+      section: 'Settings',
+      label: 'Toggle unified/split view',
+      description: `Currently: ${viewMode} view`,
+      icon: viewMode === 'unified' ? <ViewColumnsIcon /> : <Bars3Icon />,
+      action: () => { setViewMode(viewMode === 'unified' ? 'split' : 'unified'); },
+    })
+    items.push({
+      id: 'toggle-display-mode',
+      section: 'Settings',
+      label: 'Toggle single/all file view',
+      description: `Currently: ${displayMode === 'single' ? 'single file' : 'all files'}`,
+      icon: displayMode === 'single' ? <DocumentDuplicateIcon /> : <DocumentIcon />,
+      action: () => { setDisplayMode(displayMode === 'single' ? 'all' : 'single'); },
+    })
+    items.push({
+      id: 'toggle-file-tree-view',
+      section: 'Settings',
+      label: 'Toggle list/tree file view',
+      description: `Currently: ${fileViewMode}`,
+      icon: fileViewMode === 'list' ? <FolderIcon /> : <QueueListIcon />,
+      action: () => { setFileViewMode(fileViewMode === 'list' ? 'tree' : 'list'); },
+    })
+    items.push({
+      id: 'toggle-show-comments',
+      section: 'Settings',
+      label: showComments ? 'Hide comments' : 'Show comments',
+      icon: showComments ? <EyeSlashIcon /> : <EyeIcon />,
+      action: () => { setShowComments(v => !v); },
+    })
+    items.push({
+      id: 'toggle-dark-mode',
+      section: 'Settings',
+      label: 'Toggle light/dark mode',
+      description: `Currently: ${isDark ? 'dark' : 'light'}`,
+      icon: isDark ? <SunIcon /> : <MoonIcon />,
+      action: toggleDark,
+    })
+    if (backend === 'git' && selectedRevision === null) {
+      const diffTypeLabels: Record<DiffType, string> = { all: 'All changes', staged: 'Staged changes', unstaged: 'Unstaged changes' }
+      const diffTypeIcons: Record<DiffType, React.ReactNode> = { all: <ListBulletIcon />, staged: <CheckCircleIcon />, unstaged: <ClockIcon /> }
+      for (const type of ['all', 'staged', 'unstaged'] as DiffType[]) {
+        if (type === diffType) continue
+        items.push({
+          id: `diff-type-${type}`,
+          section: 'Settings',
+          label: diffTypeLabels[type],
+          icon: diffTypeIcons[type],
+          action: () => { setDiffType(type); },
+        })
+      }
+    }
 
     return items
   }, [
@@ -869,6 +866,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
               onToggleDisplayMode={() => { setDisplayMode(displayMode === 'single' ? 'all' : 'single'); }}
               isDark={isDark}
               onToggleDark={toggleDark}
+              onShowHelp={() => { setShowHelp(true); }}
             />
             </div>
           </div>

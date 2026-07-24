@@ -14,6 +14,7 @@ import {
   MoonIcon,
   UserIcon,
   SparklesIcon,
+  QuestionMarkCircleIcon,
 } from '@heroicons/react/24/outline'
 
 interface SettingsPanelProps {
@@ -31,6 +32,7 @@ interface SettingsPanelProps {
   onToggleDisplayMode: () => void
   isDark: boolean
   onToggleDark: () => void
+  onShowHelp: () => void
 }
 
 export default function SettingsPanel({
@@ -48,6 +50,7 @@ export default function SettingsPanel({
   onToggleDisplayMode,
   isDark,
   onToggleDark,
+  onShowHelp,
 }: SettingsPanelProps): React.ReactElement {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -164,6 +167,14 @@ export default function SettingsPanel({
               <MoonIcon className="w-3.5 h-3.5 shrink-0" />
             )}
             <span>{isDark ? 'Light mode' : 'Dark mode'}</span>
+          </button>
+
+          <div className="my-1 border-t border-edge" />
+
+          {/* Help */}
+          <button className={itemClass} onClick={() => { setOpen(false); onShowHelp(); }}>
+            <QuestionMarkCircleIcon className="w-3.5 h-3.5 shrink-0" />
+            <span>Keyboard shortcuts</span>
           </button>
 
         </div>

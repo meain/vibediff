@@ -135,8 +135,8 @@ describe('DiffViewer - command palette / selected-file sync', () => {
     fireEvent.keyDown(document, { key: 'k', metaKey: true })
     expect(screen.getByPlaceholderText('Type a command or search…')).toBeInTheDocument()
 
-    typeInPalette('Mark current file as reviewed')
-    const markItem = await screen.findByText('Mark current file as reviewed')
+    typeInPalette('Mark as reviewed')
+    const markItem = await screen.findByText('Mark as reviewed')
     fireEvent.click(markItem)
 
     // Palette should have closed.
@@ -149,8 +149,8 @@ describe('DiffViewer - command palette / selected-file sync', () => {
 
     // Reopen the command palette: it should now offer to mark b.txt (not a.txt) as reviewed.
     fireEvent.keyDown(document, { key: 'k', metaKey: true })
-    typeInPalette('Mark current file as reviewed')
-    const markItem2 = await screen.findByText('Mark current file as reviewed')
+    typeInPalette('Mark as reviewed')
+    const markItem2 = await screen.findByText('Mark as reviewed')
     // The description under the label shows the target file path.
     const labelWrapper = assertNotNull(markItem2.parentElement)
     expect(within(labelWrapper).getByText('b.txt')).toBeInTheDocument()
