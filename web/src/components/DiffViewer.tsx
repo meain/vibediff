@@ -270,7 +270,12 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent): void => {
-      if (!data?.files.length || e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+      if (
+        !data?.files.length ||
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        e.metaKey || e.ctrlKey
+      ) {
         return
       }
 
@@ -288,10 +293,10 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
         if (prevIndex >= 0) {
           setSelectedFile(data.files[prevIndex])
         }
-      } else if (e.key === 'r' && selectedFile && !e.metaKey && !e.ctrlKey) {
+      } else if (e.key === 'r' && selectedFile) {
         e.preventDefault()
         handleToggleReviewed(selectedFile)
-      } else if (e.key === '?' && !e.metaKey && !e.ctrlKey && !e.shiftKey) {
+      } else if (e.key === '?' && !e.shiftKey) {
         e.preventDefault()
         setShowHelp(true)
       }
