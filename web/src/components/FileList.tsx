@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { FileDiff } from '../types/diff'
 import { FolderOpenIcon, ListBulletIcon } from '@heroicons/react/24/outline'
+import { scrollFileIntoView } from '../utils/scrollToFile'
 
 interface FileListProps {
   files: FileDiff[]
@@ -27,10 +28,7 @@ export default function FileList({ files, selectedFile, onSelectFile, displayMod
     onSelectFile(file)
 
     if (displayMode === 'all') {
-      const element = document.getElementById(`file-${file.path.replace(/\//g, '-')}`)
-      if (element) {
-        element.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      }
+      scrollFileIntoView(file.path)
     }
   }
 

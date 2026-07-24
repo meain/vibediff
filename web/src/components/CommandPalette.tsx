@@ -8,6 +8,8 @@ export interface CommandItem {
   label: string
   hint?: string
   icon?: React.ReactNode
+  /** Small faded subtitle shown under the label, e.g. the current value of a toggle. */
+  description?: string
   /** Either `action` (runs and closes the palette) or `children` (drills into a submenu of these items) must be set. */
   action?: () => void
   children?: CommandItem[]
@@ -201,18 +203,23 @@ export default function CommandPalette({ isOpen, onClose, items }: CommandPalett
                     ref={(el) => { itemRefs.current[idx] = el }}
                     onClick={() => { runItem(item); }}
                     onMouseEnter={() => { setHighlightedIndex(idx); }}
-                    className={`flex items-center justify-between w-full px-2 py-1.5 rounded text-sm text-left transition-colors cursor-pointer ${
+                    className={`flex items-start justify-between w-full px-2 py-1.5 rounded text-sm text-left transition-colors cursor-pointer ${
                       isHighlighted ? 'bg-accent-muted text-accent-emphasis' : 'text-fg hover:bg-surface-inset'
                     }`}
                   >
-                    <span className="flex items-center gap-2 min-w-0">
+                    <span className="flex items-start gap-2 min-w-0">
                       {item.icon && (
-                        <span className="w-3.5 h-3.5 shrink-0 [&>svg]:w-3.5 [&>svg]:h-3.5">{item.icon}</span>
+                        <span className="w-3.5 h-3.5 shrink-0 mt-0.5 [&>svg]:w-3.5 [&>svg]:h-3.5">{item.icon}</span>
                       )}
-                      <span className="truncate">{item.label}</span>
+                      <span className="flex flex-col min-w-0">
+                        <span className="truncate">{item.label}</span>
+                        {item.description && (
+                          <span className="truncate text-[10px] text-fg-subtle">{item.description}</span>
+                        )}
+                      </span>
                     </span>
                     {item.hint && (
-                      <span className="text-xs text-fg-subtle shrink-0 ml-2">{item.hint}</span>
+                      <span className="text-xs text-fg-subtle shrink-0 ml-2 mt-0.5">{item.hint}</span>
                     )}
                   </button>
                 )

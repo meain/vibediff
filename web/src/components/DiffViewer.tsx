@@ -11,6 +11,7 @@ import { useReviewedRevisions } from '../hooks/useReviewedRevisions'
 import { useRevisions } from '../hooks/useRevisions'
 import { useDarkMode } from '../hooks/useDarkMode'
 import { getButtonClassName, getIconButtonClassName } from '../utils/buttonStyles'
+import { scrollFileIntoView } from '../utils/scrollToFile'
 import {
   ListBulletIcon,
   CheckCircleIcon,
@@ -255,6 +256,8 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
     toggleReviewed(file)
     if (!wasReviewed) {
       setCollapsedFiles(prev => new Set([...prev, file.path]))
+      const nextFile = data?.files[data.files.findIndex(f => f.path === file.path) + 1]
+      if (nextFile) setSelectedFile(nextFile)
     } else {
       setCollapsedFiles(prev => {
         const newSet = new Set(prev)
@@ -262,7 +265,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
         return newSet
       })
     }
-  }, [reviewedFiles, toggleReviewed])
+  }, [reviewedFiles, toggleReviewed, data])
 
   // Keyboard navigation
   useEffect(() => {
@@ -418,7 +421,8 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
     currentRevIndex = -1
   }
 
-  const goToNextCommit = useCallback(() => {
+  // "Previous" moves to an older commit (higher index); "Next" moves to a newer commit (lower index, toward the working copy).
+  const goToOlderCommit = useCallback(() => {
     const nextIndex = currentRevIndex + 1
     if (currentRevIndex !== -1 && nextIndex < revisions.length) {
       setSelectedRevision(revisions[nextIndex].id)
@@ -426,7 +430,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
     }
   }, [currentRevIndex, revisions])
 
-  const goToPreviousCommit = useCallback(() => {
+  const goToNewerCommit = useCallback(() => {
     if (currentRevIndex <= 0) {
       if (backend === 'git') {
         setSelectedRevision(null)
@@ -434,7 +438,12 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
       }
       return
     }
-    setSelectedRevision(revisions[currentRevIndex - 1].id)
+    const target = revisions[currentRevIndex - 1]
+    // jj represents "viewing the working copy" as selectedRevision === null, even
+    // though the working copy is also revisions[0] with a real id — match that
+    // convention so the sidebar highlight (which checks for null) stays in sync.
+    const isWorkingCopyTarget = !!target.isWorkingCopy && backend === 'jj'
+    setSelectedRevision(isWorkingCopyTarget ? null : target.id)
     setSelectedFile(null)
   }, [currentRevIndex, revisions, backend])
 
@@ -444,21 +453,24 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
     items.push({
       id: 'toggle-wrap-lines',
       section: 'Actions',
-      label: wrapLines ? 'Disable line wrapping' : 'Enable line wrapping',
+      label: 'Toggle line wrapping',
+      description: `Currently: ${wrapLines ? 'on' : 'off'}`,
       icon: <Bars3BottomLeftIcon />,
       action: () => { setWrapLines(w => !w); },
     })
     items.push({
       id: 'toggle-view-mode',
       section: 'Actions',
-      label: viewMode === 'unified' ? 'Switch to split view' : 'Switch to unified view',
+      label: 'Toggle unified/split view',
+      description: `Currently: ${viewMode} view`,
       icon: viewMode === 'unified' ? <ViewColumnsIcon /> : <Bars3Icon />,
       action: () => { setViewMode(viewMode === 'unified' ? 'split' : 'unified'); },
     })
     items.push({
       id: 'toggle-display-mode',
       section: 'Actions',
-      label: displayMode === 'single' ? 'Show all files' : 'Show single file',
+      label: 'Toggle single/all file view',
+      description: `Currently: ${displayMode === 'single' ? 'single file' : 'all files'}`,
       icon: displayMode === 'single' ? <DocumentDuplicateIcon /> : <DocumentIcon />,
       action: () => { setDisplayMode(displayMode === 'single' ? 'all' : 'single'); },
     })
@@ -472,21 +484,24 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
     items.push({
       id: 'toggle-file-tree-view',
       section: 'Actions',
-      label: fileViewMode === 'list' ? 'Switch file list to tree view' : 'Switch file list to flat view',
+      label: 'Toggle list/tree file view',
+      description: `Currently: ${fileViewMode}`,
       icon: fileViewMode === 'list' ? <FolderIcon /> : <QueueListIcon />,
       action: () => { setFileViewMode(fileViewMode === 'list' ? 'tree' : 'list'); },
     })
     items.push({
       id: 'toggle-show-comments',
       section: 'Actions',
-      label: showComments ? 'Hide comments' : 'Show comments',
+      label: 'Toggle comments visibility',
+      description: `Currently: ${showComments ? 'shown' : 'hidden'}`,
       icon: showComments ? <EyeSlashIcon /> : <EyeIcon />,
       action: () => { setShowComments(v => !v); },
     })
     items.push({
       id: 'toggle-dark-mode',
       section: 'Actions',
-      label: isDark ? 'Switch to light mode' : 'Switch to dark mode',
+      label: 'Toggle light/dark mode',
+      description: `Currently: ${isDark ? 'dark' : 'light'}`,
       icon: isDark ? <SunIcon /> : <MoonIcon />,
       action: toggleDark,
     })
@@ -554,6 +569,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
         id: 'toggle-reviewed-current-file',
         section: 'Actions',
         label: reviewedFiles.has(file.path) ? 'Mark current file as not reviewed' : 'Mark current file as reviewed',
+        description: file.path,
         hint: 'r',
         icon: <CheckCircleIcon />,
         action: () => { handleToggleReviewed(file); },
@@ -562,6 +578,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
         id: 'view-full-file',
         section: 'Actions',
         label: 'View full file',
+        description: file.path,
         icon: <ArrowsPointingOutIcon />,
         action: () => { setFullFileModal(file.path); },
       })
@@ -575,19 +592,36 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
       action: () => { setShowHelp(true); },
     })
 
+    const describeRevision = (rev: Revision): string => {
+      const isWorkingCopyRow = !!rev.isWorkingCopy && backend === 'jj'
+      return isWorkingCopyRow ? 'Working copy changes' : `${rev.shortId} ${rev.description || '(no description)'}`
+    }
+    let olderCommitDescription = 'Older'
+    if (currentRevIndex !== -1 && currentRevIndex + 1 < revisions.length) {
+      olderCommitDescription = describeRevision(revisions[currentRevIndex + 1])
+    }
+    let newerCommitDescription = 'Newer'
+    if (currentRevIndex === 0 && backend === 'git') {
+      newerCommitDescription = 'Working copy changes'
+    } else if (currentRevIndex > 0) {
+      newerCommitDescription = describeRevision(revisions[currentRevIndex - 1])
+    }
+
     items.push({
       id: 'nav-previous-commit',
       section: 'Navigate',
-      label: 'Previous commit (newer)',
-      icon: <ChevronUpIcon />,
-      action: goToPreviousCommit,
+      label: 'Previous commit',
+      description: olderCommitDescription,
+      icon: <ChevronDownIcon />,
+      action: goToOlderCommit,
     })
     items.push({
       id: 'nav-next-commit',
       section: 'Navigate',
-      label: 'Next commit (older)',
-      icon: <ChevronDownIcon />,
-      action: goToNextCommit,
+      label: 'Next commit',
+      description: newerCommitDescription,
+      icon: <ChevronUpIcon />,
+      action: goToNewerCommit,
     })
 
     const revisionChildren: CommandItem[] = []
@@ -626,14 +660,21 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
     }
 
     if (data && data.files.length > 0) {
-      const fileChildren: CommandItem[] = data.files.map((f) => ({
-        id: `file-${f.path}`,
-        section: 'Files',
-        label: f.path,
-        hint: f.path === selectedFile?.path ? 'current' : undefined,
-        icon: <DocumentIcon />,
-        action: () => { setSelectedFile(f); },
-      }))
+      const fileChildren: CommandItem[] = data.files.map((f) => {
+        const isReviewed = reviewedFiles.has(f.path)
+        const hintParts = [f.path === selectedFile?.path ? 'current' : null, isReviewed ? 'reviewed' : null].filter(Boolean)
+        return {
+          id: `file-${f.path}`,
+          section: 'Files',
+          label: f.path,
+          hint: hintParts.length > 0 ? hintParts.join(' · ') : undefined,
+          icon: isReviewed ? <CheckCircleIcon /> : <DocumentIcon />,
+          action: () => {
+            setSelectedFile(f)
+            if (displayMode === 'all') scrollFileIntoView(f.path)
+          },
+        }
+      })
       if (fileChildren.length > 0) {
         items.push({
           id: 'select-file',
@@ -684,8 +725,8 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
     wrapLines, viewMode, displayMode, allFilesCollapsed, toggleAllCollapse, fileViewMode, showComments,
     isDark, toggleDark, backend, selectedRevision, diffType, pendingThreads, comments.length,
     formatPendingCommentsForExport, revisions, formatCommentsForExport, handleClearComments,
-    handleClearReviewed, selectedFile, reviewedFiles, handleToggleReviewed, goToPreviousCommit,
-    goToNextCommit, data, directories, currentDirectory, setCurrentDirectory, registerDirectory,
+    handleClearReviewed, selectedFile, reviewedFiles, handleToggleReviewed, goToOlderCommit,
+    goToNewerCommit, currentRevIndex, data, directories, currentDirectory, setCurrentDirectory, registerDirectory,
   ])
 
   // Only show the full-screen loading spinner on the very first load (no
