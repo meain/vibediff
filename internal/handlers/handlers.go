@@ -494,13 +494,41 @@ func (h *Handler) GetDirectoryInfo(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// ListDirectories returns all registered directories.
+// ListDirectories returns all registered directories, each with its path
+// and display alias (JSON: [{"path":"...","alias":"..."}]).
 func (h *Handler) ListDirectories(w http.ResponseWriter, r *http.Request) {
-	dirs := h.registry.List()
+	dirs := h.registry.ListEntries()
 	if dirs == nil {
-		dirs = []string{}
+		dirs = []registry.Entry{}
 	}
 	h.writeJSON(w, dirs)
+}
+
+// SetDirectoryAlias sets or clears the display alias for a registered
+// directory. PATCH /api/directories/{path} with JSON body {"alias": string};
+// an empty alias clears it. Responds 404 if path is not registered.
+func (h *Handler) SetDirectoryAlias(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	dirEncoded := vars["path"]
+	dir, err := url.QueryUnescape(dirEncoded)
+	if err != nil {
+		http.Error(w, "Invalid path", http.StatusBadRequest)
+		return
+	}
+
+	var req struct {
+		Alias string `json:"alias"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if !h.registry.SetAlias(dir, req.Alias) {
+		http.Error(w, "directory not registered", http.StatusNotFound)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // RegisterDirectory validates and adds a directory to the registry.
