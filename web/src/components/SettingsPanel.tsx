@@ -29,33 +29,8 @@ interface SettingsPanelProps {
   onToggleViewMode: () => void
   displayMode: 'single' | 'all'
   onToggleDisplayMode: () => void
-}
-
-function useDarkMode(): [boolean, () => void] {
-  const [isDark, setIsDark] = useState(false)
-
-  useEffect(() => {
-    const savedTheme = localStorage.getItem('theme')
-    const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-    const dark = savedTheme === 'dark' || (!savedTheme && systemPrefersDark)
-    setIsDark(dark)
-    if (dark) document.documentElement.classList.add('dark')
-    else document.documentElement.classList.remove('dark')
-  }, [])
-
-  const toggle = (): void => {
-    if (isDark) {
-      document.documentElement.classList.remove('dark')
-      localStorage.setItem('theme', 'light')
-      setIsDark(false)
-    } else {
-      document.documentElement.classList.add('dark')
-      localStorage.setItem('theme', 'dark')
-      setIsDark(true)
-    }
-  }
-
-  return [isDark, toggle]
+  isDark: boolean
+  onToggleDark: () => void
 }
 
 export default function SettingsPanel({
@@ -71,9 +46,10 @@ export default function SettingsPanel({
   onToggleViewMode,
   displayMode,
   onToggleDisplayMode,
+  isDark,
+  onToggleDark,
 }: SettingsPanelProps): React.ReactElement {
   const [open, setOpen] = useState(false)
-  const [isDark, toggleDark] = useDarkMode()
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -181,7 +157,7 @@ export default function SettingsPanel({
           <div className="my-1 border-t border-edge" />
 
           {/* Theme */}
-          <button className={itemClass} onClick={() => { toggleDark(); }}>
+          <button className={itemClass} onClick={() => { onToggleDark(); }}>
             {isDark ? (
               <SunIcon className="w-3.5 h-3.5 shrink-0" />
             ) : (

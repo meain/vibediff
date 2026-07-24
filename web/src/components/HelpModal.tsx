@@ -71,6 +71,14 @@ export default function HelpModal({ isOpen, onClose }: HelpModalProps): React.Re
                 <kbd className="px-2 py-1 bg-surface-raised border border-edge rounded text-xs font-mono">?</kbd>
               </div>
               <div className="flex justify-between items-center py-1.5">
+                <span className="text-fg-muted">Command palette</span>
+                <div className="flex gap-2">
+                  <kbd className="px-2 py-1 bg-surface-raised border border-edge rounded text-xs font-mono">⌘ K</kbd>
+                  <span className="text-fg-muted">or</span>
+                  <kbd className="px-2 py-1 bg-surface-raised border border-edge rounded text-xs font-mono">Ctrl K</kbd>
+                </div>
+              </div>
+              <div className="flex justify-between items-center py-1.5">
                 <span className="text-fg-muted">Close modal/dialog</span>
                 <kbd className="px-2 py-1 bg-surface-raised border border-edge rounded text-xs font-mono">Esc</kbd>
               </div>

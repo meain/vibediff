@@ -9,6 +9,7 @@ import { useDirectory } from '../hooks/useDirectory'
 import { useReviewedFiles } from '../hooks/useReviewedFiles'
 import { useReviewedRevisions } from '../hooks/useReviewedRevisions'
 import { useRevisions } from '../hooks/useRevisions'
+import { useDarkMode } from '../hooks/useDarkMode'
 import { getButtonClassName, getIconButtonClassName } from '../utils/buttonStyles'
 import {
   ListBulletIcon,
@@ -18,6 +19,21 @@ import {
   TrashIcon,
   ChevronDoubleUpIcon,
   ChevronDoubleDownIcon,
+  Bars3BottomLeftIcon,
+  ViewColumnsIcon,
+  Bars3Icon,
+  DocumentDuplicateIcon,
+  DocumentIcon,
+  QueueListIcon,
+  FolderIcon,
+  EyeIcon,
+  EyeSlashIcon,
+  SunIcon,
+  MoonIcon,
+  ChevronUpIcon,
+  ChevronDownIcon,
+  ArrowsPointingOutIcon,
+  QuestionMarkCircleIcon,
 } from '@heroicons/react/24/outline'
 import { Group, Panel, Separator } from 'react-resizable-panels'
 import FileList from './FileList'
@@ -29,6 +45,7 @@ import DirectorySwitcher from './DirectorySwitcher'
 import RevisionList from './RevisionList'
 import CommitSummary from './CommitSummary'
 import Toast from './Toast'
+import CommandPalette, { type CommandItem } from './CommandPalette'
 
 interface DiffViewerProps {
   className?: string
@@ -47,6 +64,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
   const [wrapLines, setWrapLines] = useState<boolean>(() => { const v = localStorage.getItem('wrapLines'); return v !== null ? v === 'true' : true })
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
+  const [showCommandPalette, setShowCommandPalette] = useState(false)
   const [selectedRevision, setSelectedRevision] = useState<string | null>(() => {
     const params = new URLSearchParams(window.location.search)
     return params.get('rev')
@@ -84,6 +102,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
   if (displayMode === 'single') collapseAllTitle = 'Available in All Files mode'
   else if (allFilesCollapsed) collapseAllTitle = 'Expand all'
   const { reviewedRevisions, markRevisionReviewed, unmarkRevisionReviewed } = useReviewedRevisions(currentDirectory)
+  const [isDark, toggleDark] = useDarkMode()
   const { revisions, loading: revisionsLoading, refetch: refetchRevisions } = useRevisions(currentDirectory)
   const commentCountsByRevision = useAllComments(currentDirectory)
 
@@ -230,7 +249,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
     }
   }, [data, selectedFile, validateReviewed])
 
-  const handleToggleReviewed = (file: FileDiffType): void => {
+  const handleToggleReviewed = useCallback((file: FileDiffType): void => {
     const wasReviewed = reviewedFiles.has(file.path)
     toggleReviewed(file)
     if (!wasReviewed) {
@@ -242,7 +261,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
         return newSet
       })
     }
-  }
+  }, [reviewedFiles, toggleReviewed])
 
   // Keyboard navigation
   useEffect(() => {
@@ -278,6 +297,18 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
     return () => { document.removeEventListener('keydown', handleKeyDown); }
   }, [data, selectedFile, handleToggleReviewed])
 
+  // Global command palette shortcut (Cmd/Ctrl+K), independent of diff data being loaded.
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent): void => {
+      if (e.key.toLowerCase() === 'k' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault()
+        setShowCommandPalette(v => !v)
+      }
+    }
+    document.addEventListener('keydown', handleGlobalKeyDown)
+    return () => { document.removeEventListener('keydown', handleGlobalKeyDown); }
+  }, [])
+
   const toggleFileCollapse = (filePath: string): void => {
     setCollapsedFiles(prev => {
       const newSet = new Set(prev)
@@ -290,29 +321,29 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
     })
   }
 
-  const toggleAllCollapse = (): void => {
+  const toggleAllCollapse = useCallback((): void => {
     if (collapsedFiles.size === data?.files.length) {
       setCollapsedFiles(new Set())
     } else {
       setCollapsedFiles(new Set(data?.files.map(f => f.path) ?? []))
     }
-  }
+  }, [collapsedFiles.size, data])
 
-  const handleClearComments = (): void => {
+  const handleClearComments = useCallback((): void => {
     if (comments.length === 0) return
     // eslint-disable-next-line no-alert
     if (window.confirm('Clear all comments? This cannot be undone.')) {
       void clearComments()
     }
-  }
+  }, [comments.length, clearComments])
 
-  const handleClearReviewed = (): void => {
+  const handleClearReviewed = useCallback((): void => {
     if (reviewedFiles.size === 0) return
     // eslint-disable-next-line no-alert
     if (window.confirm('Clear all reviewed marks?')) {
       clearReviewed()
     }
-  }
+  }, [reviewedFiles.size, clearReviewed])
 
   const handleCancelComment = useCallback(() => { setCommentDialog(null); }, [])
 
@@ -370,6 +401,281 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
     setSelectedFile(null)
     // useDiff and useRevisions will re-fetch automatically when currentDirectory changes.
   }
+
+  // Index of the currently viewed revision within `revisions` (ordered newest-first).
+  // For jj, the working copy is revisions[0], so selectedRevision === null maps to that index.
+  // For git, the working copy has no entry in `revisions`, so it maps to -1 (before the list).
+  let currentRevIndex: number
+  if (selectedRevision !== null) {
+    currentRevIndex = revisions.findIndex(r => r.id === selectedRevision)
+  } else if (backend === 'jj') {
+    currentRevIndex = revisions.findIndex(r => r.isWorkingCopy)
+  } else {
+    currentRevIndex = -1
+  }
+
+  const goToNextCommit = useCallback(() => {
+    const nextIndex = currentRevIndex + 1
+    if (currentRevIndex !== -1 && nextIndex < revisions.length) {
+      setSelectedRevision(revisions[nextIndex].id)
+      setSelectedFile(null)
+    }
+  }, [currentRevIndex, revisions])
+
+  const goToPreviousCommit = useCallback(() => {
+    if (currentRevIndex <= 0) {
+      if (backend === 'git') {
+        setSelectedRevision(null)
+        setSelectedFile(null)
+      }
+      return
+    }
+    setSelectedRevision(revisions[currentRevIndex - 1].id)
+    setSelectedFile(null)
+  }, [currentRevIndex, revisions, backend])
+
+  const commandItems = useMemo<CommandItem[]>(() => {
+    const items: CommandItem[] = []
+
+    items.push({
+      id: 'toggle-wrap-lines',
+      section: 'Actions',
+      label: wrapLines ? 'Disable line wrapping' : 'Enable line wrapping',
+      icon: <Bars3BottomLeftIcon />,
+      action: () => { setWrapLines(w => !w); },
+    })
+    items.push({
+      id: 'toggle-view-mode',
+      section: 'Actions',
+      label: viewMode === 'unified' ? 'Switch to split view' : 'Switch to unified view',
+      icon: viewMode === 'unified' ? <ViewColumnsIcon /> : <Bars3Icon />,
+      action: () => { setViewMode(viewMode === 'unified' ? 'split' : 'unified'); },
+    })
+    items.push({
+      id: 'toggle-display-mode',
+      section: 'Actions',
+      label: displayMode === 'single' ? 'Show all files' : 'Show single file',
+      icon: displayMode === 'single' ? <DocumentDuplicateIcon /> : <DocumentIcon />,
+      action: () => { setDisplayMode(displayMode === 'single' ? 'all' : 'single'); },
+    })
+    items.push({
+      id: 'toggle-collapse-all',
+      section: 'Actions',
+      label: allFilesCollapsed ? 'Expand all files' : 'Collapse all files',
+      icon: allFilesCollapsed ? <ChevronDoubleDownIcon /> : <ChevronDoubleUpIcon />,
+      action: toggleAllCollapse,
+    })
+    items.push({
+      id: 'toggle-file-tree-view',
+      section: 'Actions',
+      label: fileViewMode === 'list' ? 'Switch file list to tree view' : 'Switch file list to flat view',
+      icon: fileViewMode === 'list' ? <FolderIcon /> : <QueueListIcon />,
+      action: () => { setFileViewMode(fileViewMode === 'list' ? 'tree' : 'list'); },
+    })
+    items.push({
+      id: 'toggle-show-comments',
+      section: 'Actions',
+      label: showComments ? 'Hide comments' : 'Show comments',
+      icon: showComments ? <EyeSlashIcon /> : <EyeIcon />,
+      action: () => { setShowComments(v => !v); },
+    })
+    items.push({
+      id: 'toggle-dark-mode',
+      section: 'Actions',
+      label: isDark ? 'Switch to light mode' : 'Switch to dark mode',
+      icon: isDark ? <SunIcon /> : <MoonIcon />,
+      action: toggleDark,
+    })
+    if (backend === 'git' && selectedRevision === null) {
+      const diffTypeLabels: Record<DiffType, string> = { all: 'Show all changes', staged: 'Show staged changes only', unstaged: 'Show unstaged changes only' }
+      const diffTypeIcons: Record<DiffType, React.ReactNode> = { all: <ListBulletIcon />, staged: <CheckCircleIcon />, unstaged: <ClockIcon /> }
+      for (const type of ['all', 'staged', 'unstaged'] as DiffType[]) {
+        if (type === diffType) continue
+        items.push({
+          id: `diff-type-${type}`,
+          section: 'Actions',
+          label: diffTypeLabels[type],
+          icon: diffTypeIcons[type],
+          action: () => { setDiffType(type); },
+        })
+      }
+    }
+    if (pendingThreads > 0) {
+      items.push({
+        id: 'copy-pending-comments',
+        section: 'Actions',
+        label: 'Copy pending review comments',
+        icon: <ClipboardDocumentIcon />,
+        action: () => {
+          void navigator.clipboard.writeText(formatPendingCommentsForExport(revisions)).then(() => {
+            setCopyFeedback(true)
+            setTimeout(() => { setCopyFeedback(false); }, 1500)
+          })
+        },
+      })
+    }
+    if (comments.length > 0) {
+      items.push({
+        id: 'copy-all-comments',
+        section: 'Actions',
+        label: 'Copy all comments',
+        icon: <ClipboardDocumentIcon />,
+        action: () => {
+          void navigator.clipboard.writeText(formatCommentsForExport(revisions)).then(() => {
+            setCopyAllFeedback(true)
+            setTimeout(() => { setCopyAllFeedback(false); }, 1500)
+          })
+        },
+      })
+      items.push({
+        id: 'clear-comments',
+        section: 'Actions',
+        label: 'Clear all comments',
+        icon: <TrashIcon />,
+        action: handleClearComments,
+      })
+    }
+    if (reviewedFiles.size > 0) {
+      items.push({
+        id: 'clear-reviewed',
+        section: 'Actions',
+        label: 'Clear reviewed marks',
+        icon: <TrashIcon />,
+        action: handleClearReviewed,
+      })
+    }
+    if (selectedFile) {
+      const file = selectedFile
+      items.push({
+        id: 'toggle-reviewed-current-file',
+        section: 'Actions',
+        label: reviewedFiles.has(file.path) ? 'Mark current file as not reviewed' : 'Mark current file as reviewed',
+        hint: 'r',
+        icon: <CheckCircleIcon />,
+        action: () => { handleToggleReviewed(file); },
+      })
+      items.push({
+        id: 'view-full-file',
+        section: 'Actions',
+        label: 'View full file',
+        icon: <ArrowsPointingOutIcon />,
+        action: () => { setFullFileModal(file.path); },
+      })
+    }
+    items.push({
+      id: 'show-help',
+      section: 'Actions',
+      label: 'Show keyboard shortcuts',
+      hint: '?',
+      icon: <QuestionMarkCircleIcon />,
+      action: () => { setShowHelp(true); },
+    })
+
+    items.push({
+      id: 'nav-previous-commit',
+      section: 'Navigate',
+      label: 'Previous commit (newer)',
+      icon: <ChevronUpIcon />,
+      action: goToPreviousCommit,
+    })
+    items.push({
+      id: 'nav-next-commit',
+      section: 'Navigate',
+      label: 'Next commit (older)',
+      icon: <ChevronDownIcon />,
+      action: goToNextCommit,
+    })
+
+    const revisionChildren: CommandItem[] = []
+    if (backend === 'git' && selectedRevision !== null) {
+      revisionChildren.push({
+        id: 'nav-working-copy',
+        section: 'Revisions',
+        label: 'Working copy changes',
+        icon: <ClockIcon />,
+        action: () => { setSelectedRevision(null); setSelectedFile(null); },
+      })
+    }
+    for (const rev of revisions) {
+      const isWorkingCopyRow = !!rev.isWorkingCopy && backend === 'jj'
+      const isCurrent = isWorkingCopyRow ? selectedRevision === null : selectedRevision === rev.id
+      if (isCurrent) continue
+      revisionChildren.push({
+        id: `nav-rev-${rev.id}`,
+        section: 'Revisions',
+        label: isWorkingCopyRow ? 'Working copy changes' : `${rev.shortId} ${rev.description || '(no description)'}`,
+        icon: isWorkingCopyRow ? <ClockIcon /> : undefined,
+        action: () => {
+          setSelectedRevision(isWorkingCopyRow ? null : rev.id)
+          setSelectedFile(null)
+        },
+      })
+    }
+    if (revisionChildren.length > 0) {
+      items.push({
+        id: 'change-revision',
+        section: 'Navigate',
+        label: 'Change revision…',
+        icon: <ClockIcon />,
+        children: revisionChildren,
+      })
+    }
+
+    if (data && data.files.length > 0) {
+      const fileChildren: CommandItem[] = data.files.map((f) => ({
+        id: `file-${f.path}`,
+        section: 'Files',
+        label: f.path,
+        hint: f.path === selectedFile?.path ? 'current' : undefined,
+        icon: <DocumentIcon />,
+        action: () => { setSelectedFile(f); },
+      }))
+      if (fileChildren.length > 0) {
+        items.push({
+          id: 'select-file',
+          section: 'Navigate',
+          label: 'Select file…',
+          icon: <DocumentIcon />,
+          children: fileChildren,
+        })
+      }
+    }
+
+    const directoryChildren: CommandItem[] = directories.map((dir) => {
+      const isCurrentDir = dir.path === currentDirectory
+      // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- empty-string alias means "unset", so fall back to path
+      const label = dir.alias || dir.path
+      return {
+        id: `dir-${dir.path}`,
+        section: 'Directories',
+        label,
+        hint: isCurrentDir ? 'current' : undefined,
+        icon: <FolderIcon />,
+        action: () => {
+          setCurrentDirectory(dir.path)
+          setSelectedRevision(null)
+          setSelectedFile(null)
+        },
+      }
+    })
+    if (directoryChildren.length > 1) {
+      items.push({
+        id: 'switch-directory',
+        section: 'Navigate',
+        label: 'Switch directory…',
+        icon: <FolderIcon />,
+        children: directoryChildren,
+      })
+    }
+
+    return items
+  }, [
+    wrapLines, viewMode, displayMode, allFilesCollapsed, toggleAllCollapse, fileViewMode, showComments,
+    isDark, toggleDark, backend, selectedRevision, diffType, pendingThreads, comments.length,
+    formatPendingCommentsForExport, revisions, formatCommentsForExport, handleClearComments,
+    handleClearReviewed, selectedFile, reviewedFiles, handleToggleReviewed, goToPreviousCommit,
+    goToNextCommit, data, directories, currentDirectory, setCurrentDirectory,
+  ])
 
   // Only show the full-screen loading spinner on the very first load (no
   // data yet). Subsequent refetches keep the existing layout visible so
@@ -504,6 +810,8 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
               onToggleViewMode={() => { setViewMode(viewMode === 'unified' ? 'split' : 'unified'); }}
               displayMode={displayMode}
               onToggleDisplayMode={() => { setDisplayMode(displayMode === 'single' ? 'all' : 'single'); }}
+              isDark={isDark}
+              onToggleDark={toggleDark}
             />
             </div>
           </div>
@@ -748,6 +1056,13 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
       <HelpModal
         isOpen={showHelp}
         onClose={() => { setShowHelp(false); }}
+      />
+
+      {/* Command Palette */}
+      <CommandPalette
+        isOpen={showCommandPalette}
+        onClose={() => { setShowCommandPalette(false); }}
+        items={commandItems}
       />
       </div>
 
