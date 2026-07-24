@@ -247,6 +247,11 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
           setSelectedFile(data.files[0])
         }
       }
+    } else if (data && selectedFile) {
+      // Diff is empty (e.g. no changes in this directory/revision) — clear
+      // the stale selection so file-specific actions don't linger for a
+      // file that's no longer part of the diff.
+      setSelectedFile(null)
     }
   }, [data, selectedFile, validateReviewed])
 
@@ -523,13 +528,15 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
         action: () => { setFullFileModal(file.path); },
       })
     }
-    items.push({
-      id: 'toggle-collapse-all',
-      section: 'Actions',
-      label: allFilesCollapsed ? 'Expand all' : 'Collapse all',
-      icon: allFilesCollapsed ? <ChevronDoubleDownIcon /> : <ChevronDoubleUpIcon />,
-      action: toggleAllCollapse,
-    })
+    if (data && data.files.length > 0) {
+      items.push({
+        id: 'toggle-collapse-all',
+        section: 'Actions',
+        label: allFilesCollapsed ? 'Expand all' : 'Collapse all',
+        icon: allFilesCollapsed ? <ChevronDoubleDownIcon /> : <ChevronDoubleUpIcon />,
+        action: toggleAllCollapse,
+      })
+    }
     // Navigation — moving between commits, files, and directories.
     const describeRevision = (rev: Revision): string => {
       const isWorkingCopyRow = !!rev.isWorkingCopy && backend === 'jj'
