@@ -556,6 +556,20 @@ func (s *Service) GetRevisions(dir string, limit int) ([]Revision, error) {
 	return s.getGitRevisions(dir, limit)
 }
 
+// RevisionSignature returns a cheap fingerprint of the commit graph so the
+// watcher can detect changes to the revision list (new commits, amends,
+// rebases, abandons, description edits) that don't alter the working-copy
+// status and therefore wouldn't otherwise trigger a refresh.
+func (s *Service) RevisionSignature(dir string) (string, error) {
+	if s.getBackend(dir) == BackendJJ {
+		// The operation id advances on any repo mutation.
+		return s.runJJCommand(dir, "op", "log", "--no-graph", "-n", "1", "-T", "id")
+	}
+	// Commit hashes plus ref decorations for the revisions we display;
+	// these change on commit, amend, rebase, and branch movement.
+	return s.runGitCommand(dir, "log", "--format=%H%d", "-n", "50", "--all")
+}
+
 var reInsert = regexp.MustCompile(`(\d+) insertions?`)
 var reDelete = regexp.MustCompile(`(\d+) deletions?`)
 

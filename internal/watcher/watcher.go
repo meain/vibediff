@@ -27,6 +27,7 @@ type GitWatcher struct {
 	service     *git.Service
 	registry    DirectoryLister
 	lastStatus  map[string]string
+	lastRevSig  map[string]string
 	done        chan bool
 	mu          sync.Mutex
 	fswatcher   *fsnotify.Watcher
@@ -40,6 +41,7 @@ func NewGitWatcher(hub ChangeNotifier, service *git.Service, registry DirectoryL
 		service:    service,
 		registry:   registry,
 		lastStatus: make(map[string]string),
+		lastRevSig: make(map[string]string),
 		done:       make(chan bool),
 	}
 }
@@ -87,6 +89,13 @@ func (w *GitWatcher) Start() {
 		reconcileTicker := time.NewTicker(30 * time.Second)
 		defer reconcileTicker.Stop()
 
+		// Commit-graph changes (new commits, amends, rebases, description
+		// edits) touch only .git/.jj metadata, which fsnotify deliberately
+		// ignores, and often leave the working-copy status unchanged. Poll a
+		// cheap revision fingerprint so the revision list stays in sync.
+		revTicker := time.NewTicker(2 * time.Second)
+		defer revTicker.Stop()
+
 		// pending holds per-dir debounce timers; only accessed in this goroutine.
 		pending := make(map[string]*time.Timer)
 
@@ -131,6 +140,9 @@ func (w *GitWatcher) Start() {
 			case <-reconcileTicker.C:
 				w.reconcileWatchers()
 
+			case <-revTicker.C:
+				w.checkAllRevisions()
+
 			case <-w.done:
 				// Cancel all pending timers
 				for _, t := range pending {
@@ -154,6 +166,7 @@ func (w *GitWatcher) startPolling(interval time.Duration) {
 			select {
 			case <-ticker.C:
 				w.checkAllDirs()
+				w.checkAllRevisions()
 			case <-w.done:
 				if os.Getenv("VIBEDIFF_DEBUG") == "true" {
 					log.Println("VCS watcher stopped (polling fallback)")
@@ -202,6 +215,36 @@ func (w *GitWatcher) checkDir(dir string) {
 	backend := w.service.GetBackend(dir)
 	changeType := detectChangeType(output, backend)
 	w.hub.NotifyChange(changeType, dir)
+}
+
+func (w *GitWatcher) checkAllRevisions() {
+	dirs := w.registry.List()
+	for _, dir := range dirs {
+		w.checkRevisions(dir)
+	}
+}
+
+// checkRevisions detects commit-graph changes that don't surface in the
+// working-copy status and broadcasts so the revision list refreshes.
+func (w *GitWatcher) checkRevisions(dir string) {
+	sig, err := w.service.RevisionSignature(dir)
+	if err != nil {
+		if os.Getenv("VIBEDIFF_DEBUG") == "true" {
+			log.Printf("Error checking revision signature for %s: %v", dir, err)
+		}
+		return
+	}
+
+	w.mu.Lock()
+	last, seen := w.lastRevSig[dir]
+	w.lastRevSig[dir] = sig
+	w.mu.Unlock()
+
+	// Skip the first observation so we don't broadcast on startup.
+	if !seen || sig == last {
+		return
+	}
+	w.hub.NotifyChange("file_changed", dir)
 }
 
 func detectChangeType(status string, backend git.VCSBackend) string {
