@@ -19,7 +19,6 @@ import (
 
 	"github.com/malvex/vibediff/internal/git"
 	"github.com/malvex/vibediff/internal/handlers"
-	"github.com/malvex/vibediff/internal/mcp"
 	"github.com/malvex/vibediff/internal/registry"
 	"github.com/malvex/vibediff/internal/review"
 	"github.com/malvex/vibediff/internal/watcher"
@@ -114,7 +113,7 @@ func main() {
 	go wsHub.Run()
 
 	// Notify the UI whenever a comment is added — covers agent replies
-	// posted through the MCP reply_to_comment tool.
+	// posted by an external client through the comment API.
 	_ = reviewStore.Subscribe(func(c *review.Comment) {
 		dir := ""
 		if c != nil {
@@ -139,7 +138,6 @@ func main() {
 	r.HandleFunc("/api/review/comments", handler.GetComments).Methods("GET")
 	r.HandleFunc("/api/review/comments/open", handler.GetOpenComments).Methods("GET")
 	r.HandleFunc("/api/review/comments/resolved", handler.GetResolvedComments).Methods("GET")
-	r.HandleFunc("/api/review/comments/latest", handler.GetLatestComment).Methods("GET")
 	r.HandleFunc("/api/review/comment/{id}", handler.UpdateComment).Methods("PATCH")
 	r.HandleFunc("/api/review/comment/{id}", handler.DeleteComment).Methods("DELETE")
 	r.HandleFunc("/api/review/comments", handler.ClearAllComments).Methods("DELETE")
@@ -163,10 +161,6 @@ func main() {
 
 	// WebSocket endpoint for live updates
 	r.HandleFunc("/api/ws", handler.HandleWebSocket(wsHub)).Methods("GET")
-
-	// Embedded MCP server.
-	mcpServer := mcp.New(reviewStore, gitService, mcp.NewGitHunkProvider(gitService))
-	r.PathPrefix("/mcp").Handler(mcpServer.Handler())
 
 	// Serve static assets from React build
 	var webFS fs.FS
@@ -210,8 +204,8 @@ func main() {
 		Addr:        addr,
 		Handler:     r,
 		ReadTimeout: 15 * time.Second,
-		// WriteTimeout is intentionally unset — MCP long-polls can hold
-		// connections open for up to 10 minutes.
+		// WriteTimeout is intentionally unset — the WebSocket endpoint
+		// holds long-lived connections open.
 	}
 
 	// Determine if we should open the browser

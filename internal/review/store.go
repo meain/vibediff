@@ -3,14 +3,13 @@ package review
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"sort"
 	"sync"
 	"time"
 )
 
 // AuthorUser and AuthorAgent enumerate Comment.Author values. User comments
 // originate from the vibediff browser UI; agent comments are written by an
-// MCP client through the reply_to_comment tool.
+// external client posting to the comment API.
 const (
 	AuthorUser  = "user"
 	AuthorAgent = "agent"
@@ -59,7 +58,7 @@ type Subscriber func(*Comment)
 // subscription pairs a Subscriber callback with an opaque id used to
 // remove it on unsubscribe. Slice rather than map because iteration is
 // the hot path and the active subscriber count is small (a few at most:
-// the WebSocket hub plus any in-flight wait_for_comment waiters).
+// the WebSocket hub plus any other durable subscribers).
 type subscription struct {
 	id uint64
 	fn Subscriber
@@ -68,13 +67,6 @@ type subscription struct {
 type Store struct {
 	mu       sync.RWMutex
 	comments map[string]*Comment
-	// tombstones records the CreatedAt of comments removed via
-	// DeleteComment. Kept indefinitely so wait_for_comment cursors that
-	// point at a deleted comment continue to resolve to the right
-	// timestamp threshold. Without this, the agent's cursor would
-	// silently fall back to "no cursor" after every delete and re-
-	// deliver the entire backlog on the next wait_for_comment call.
-	tombstones map[string]time.Time
 	// loadedDirs tracks which project directories have been loaded from
 	// disk, enabling lazy per-directory loading without double-loading.
 	loadedDirs map[string]bool
@@ -87,21 +79,15 @@ type Store struct {
 func NewStore() *Store {
 	return &Store{
 		comments:   make(map[string]*Comment),
-		tombstones: make(map[string]time.Time),
 		loadedDirs: make(map[string]bool),
 	}
 }
 
 // Subscribe registers a durable callback that fires on every AddComment.
 // Returns an unsubscribe function the caller must invoke when done; the
-// store does not auto-remove subscribers. Used by two consumers with
-// different lifecycles:
-//
-//   - The WebSocket hub registers once at startup so the UI re-fetches
-//     comments whenever an agent reply or other server-side write lands.
-//     It never unsubscribes.
-//   - The wait_for_comment MCP handler subscribes per call and
-//     unsubscribes via defer.
+// store does not auto-remove subscribers. The WebSocket hub registers
+// once at startup so the UI re-fetches comments whenever an agent reply
+// or other server-side write lands. It never unsubscribes.
 //
 // The unsubscribe function is idempotent and safe to call after the
 // store has been cleared.
@@ -196,70 +182,8 @@ func (s *Store) GetByID(id string) *Comment {
 	return s.comments[id]
 }
 
-// LatestOpenComment returns the single most recently created open
-// comment, or nil if none exist. Used by the /api/review/comments/latest
-// HTTP endpoint that hook scripts poll for new arrivals.
-func (s *Store) LatestOpenComment() *Comment {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	var latest *Comment
-	for _, c := range s.comments {
-		if c.Status != StatusOpen {
-			continue
-		}
-		if latest == nil || c.CreatedAt.After(latest.CreatedAt) {
-			latest = c
-		}
-	}
-	return latest
-}
-
-// UserCommentsAfter returns user-authored, status-open comments created
-// after the comment identified by sinceID, in creation order (oldest
-// first). An empty or unknown sinceID returns all matching comments.
-// If the sinceID matches a tombstone (set when a comment was deleted
-// via DeleteComment), the tombstone's recorded CreatedAt is used as
-// the threshold so a deleted-cursor case continues to filter correctly
-// instead of degrading to a full redelivery.
-//
-// Used by the wait_for_comment MCP tool to drain the backlog and to
-// re-query after a subscriber wake.
-func (s *Store) UserCommentsAfter(sinceID string) []*Comment {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	var threshold time.Time
-	if sinceID != "" {
-		if c, ok := s.comments[sinceID]; ok {
-			threshold = c.CreatedAt
-		} else if t, ok := s.tombstones[sinceID]; ok {
-			threshold = t
-		}
-	}
-
-	out := make([]*Comment, 0)
-	for _, c := range s.comments {
-		if c.Author != AuthorUser {
-			continue
-		}
-		if c.Status != StatusOpen {
-			continue
-		}
-		if !c.CreatedAt.After(threshold) {
-			continue
-		}
-		out = append(out, c)
-	}
-	sort.Slice(out, func(i, j int) bool {
-		return out[i].CreatedAt.Before(out[j].CreatedAt)
-	})
-	return out
-}
-
 // GetCommentsByStatus returns comments with the given status. Used by the
-// /comments/open and /comments/resolved HTTP routes and by the MCP tool
-// list_open_comments.
+// /comments/open and /comments/resolved HTTP routes.
 func (s *Store) GetCommentsByStatus(status string) []*Comment {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -302,10 +226,7 @@ func (s *Store) SetStatus(id, status string) bool {
 
 // DeleteComment removes a comment and, if the target is a thread root,
 // cascades the removal to every reply. Single deletions of replies
-// remove only the reply. Tombstones the deleted root's CreatedAt so
-// wait_for_comment cursors pointing at it remain resolvable after the
-// comment is gone — without this, the agent's next call would fall
-// back to "no cursor" and redeliver the entire backlog.
+// remove only the reply.
 //
 // Fires subscribers with a nil comment so the WS hub broadcasts a
 // comment_changed event and connected browser tabs re-fetch. The
@@ -320,7 +241,6 @@ func (s *Store) DeleteComment(id string) bool {
 		s.mu.Unlock()
 		return false
 	}
-	s.tombstones[id] = c.CreatedAt
 	delete(s.comments, id)
 	if c.ParentID == "" {
 		for childID, child := range s.comments {

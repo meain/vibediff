@@ -50,8 +50,8 @@ export function useComments(currentDirectory?: string, selectedRevision?: string
   }, [currentDirectory, selectedRevision])
 
   // Fetch comments on mount, on directory/revision change, and whenever the
-  // server broadcasts a comment_changed event (e.g. an agent reply
-  // posted through the MCP reply_to_comment tool).
+  // server broadcasts a comment_changed event (e.g. an agent reply added
+  // by an external client posting to the comment API).
   useEffect(() => {
     const fetchComments = async (): Promise<void> => {
       try {

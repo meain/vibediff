@@ -6,77 +6,6 @@ import (
 	"time"
 )
 
-// TestUserCommentsAfter exercises the cursor semantics that
-// wait_for_comment depends on: empty sinceID returns all matching, a known
-// sinceID returns strictly newer entries in creation order, and an unknown
-// sinceID degrades to the empty-sinceID behavior so a deleted cursor
-// can't strand a poller.
-func TestUserCommentsAfter(t *testing.T) {
-	s := NewStore()
-
-	first := &Comment{File: "a.go", Content: "first"}
-	s.AddComment(first)
-	time.Sleep(time.Millisecond)
-
-	agent := &Comment{File: "a.go", Content: "agent reply", Author: AuthorAgent}
-	s.AddComment(agent)
-	time.Sleep(time.Millisecond)
-
-	second := &Comment{File: "a.go", Content: "second"}
-	s.AddComment(second)
-	time.Sleep(time.Millisecond)
-
-	resolved := &Comment{File: "a.go", Content: "resolved"}
-	s.AddComment(resolved)
-	s.SetStatus(resolved.ID, StatusResolved)
-
-	testCases := []struct {
-		name    string
-		sinceID string
-		wantIDs []string
-	}{
-		{
-			name:    "empty sinceID returns all user-open in order",
-			sinceID: "",
-			wantIDs: []string{first.ID, second.ID},
-		},
-		{
-			name:    "known sinceID returns strictly newer",
-			sinceID: first.ID,
-			wantIDs: []string{second.ID},
-		},
-		{
-			name:    "cursor at newest returns nothing",
-			sinceID: second.ID,
-			wantIDs: nil,
-		},
-		{
-			name:    "unknown sinceID degrades to empty-sinceID",
-			sinceID: "deadbeefdeadbeef",
-			wantIDs: []string{first.ID, second.ID},
-		},
-		{
-			name:    "agent-authored sinceID still filters agent out of result",
-			sinceID: agent.ID,
-			wantIDs: []string{second.ID},
-		},
-	}
-
-	for _, test := range testCases {
-		t.Run(test.name, func(t *testing.T) {
-			got := s.UserCommentsAfter(test.sinceID)
-			if len(got) != len(test.wantIDs) {
-				t.Fatalf("len = %d, want %d (%v)", len(got), len(test.wantIDs), idsOf(got))
-			}
-			for i, want := range test.wantIDs {
-				if got[i].ID != want {
-					t.Fatalf("[%d].ID = %q, want %q", i, got[i].ID, want)
-				}
-			}
-		})
-	}
-}
-
 // TestSubscribersFireOnEveryAdd verifies that Subscribe is durable: each
 // registration fires on every subsequent AddComment until the returned
 // unsubscribe function is called.
@@ -112,7 +41,7 @@ func TestSubscribersFireOnEveryAdd(t *testing.T) {
 	}
 }
 
-// TestUnsubscribeStopsDelivery covers the wait_for_comment-style
+// TestUnsubscribeStopsDelivery covers the subscribe/unsubscribe
 // lifecycle: subscribe, get one event, unsubscribe, ensure subsequent
 // AddComments don't deliver to the dead subscription.
 func TestUnsubscribeStopsDelivery(t *testing.T) {
@@ -148,8 +77,8 @@ func TestUnsubscribeIsIdempotent(t *testing.T) {
 }
 
 // TestMultipleSubscribersIndependent makes sure unsubscribe targets only
-// the caller's subscription. The WS hub and a wait_for_comment handler
-// coexist in production; one going away must not silence the other.
+// the caller's subscription. Multiple durable subscribers can coexist in
+// production; one going away must not silence the other.
 func TestMultipleSubscribersIndependent(t *testing.T) {
 	s := NewStore()
 
@@ -186,38 +115,12 @@ func TestMultipleSubscribersIndependent(t *testing.T) {
 	}
 }
 
-// TestLatestOpenComment confirms the helper the /comments/latest HTTP
-// endpoint depends on returns the newest open comment regardless of
-// insertion order and ignores resolved comments.
-func TestLatestOpenComment(t *testing.T) {
-	s := NewStore()
-
-	if got := s.LatestOpenComment(); got != nil {
-		t.Fatalf("empty store: got %v, want nil", got)
-	}
-
-	old := &Comment{Content: "old"}
-	s.AddComment(old)
-	time.Sleep(time.Millisecond)
-	newer := &Comment{Content: "newer"}
-	s.AddComment(newer)
-	time.Sleep(time.Millisecond)
-	newest := &Comment{Content: "newest-but-resolved"}
-	s.AddComment(newest)
-	s.SetStatus(newest.ID, StatusResolved)
-
-	got := s.LatestOpenComment()
-	if got == nil || got.ID != newer.ID {
-		t.Fatalf("got %v, want %v", got, newer)
-	}
-}
-
 // TestDeleteCommentCascadesRepliesForRoot makes the cascade contract
 // explicit: removing a thread root drops every agent reply pointing at
 // it via ParentID. The cascade applies whether the deletion came from
-// the user clicking × in the UI or the agent calling delete_comment —
-// without it, the UI strands the agent's reply as a top-level OPEN
-// comment after the user closes the parent.
+// the user clicking × in the UI or an agent-driven client deleting the
+// thread — without it, the UI strands the agent's reply as a top-level
+// OPEN comment after the user closes the parent.
 func TestDeleteCommentCascadesRepliesForRoot(t *testing.T) {
 	s := NewStore()
 
@@ -275,41 +178,6 @@ func TestDeleteCommentLeavesParentForReply(t *testing.T) {
 	}
 }
 
-// TestDeleteCommentTombstoneKeepsCursorValid is the wait_for_comment
-// regression: after the agent's batch is processed and the comment
-// deleted, the next wait_for_comment call uses the deleted ID as its
-// cursor. Without tombstones, UserCommentsAfter would fall back to
-// "no threshold" and re-deliver everything that's still open.
-func TestDeleteCommentTombstoneKeepsCursorValid(t *testing.T) {
-	s := NewStore()
-
-	first := &Comment{Content: "first"}
-	s.AddComment(first)
-	time.Sleep(time.Millisecond)
-	second := &Comment{Content: "second (processed and deleted)"}
-	s.AddComment(second)
-	time.Sleep(time.Millisecond)
-
-	if !s.DeleteComment(second.ID) {
-		t.Fatal("DeleteComment returned false")
-	}
-
-	// Cursor pinned at the now-deleted comment should still filter
-	// `first` (older than the tombstone) out of the result.
-	got := s.UserCommentsAfter(second.ID)
-	if len(got) != 0 {
-		t.Fatalf("cursor at deleted comment returned %d, want 0 (tombstone failed)", len(got))
-	}
-
-	// A new user comment after the deletion should still come through.
-	third := &Comment{Content: "third"}
-	s.AddComment(third)
-	got = s.UserCommentsAfter(second.ID)
-	if len(got) != 1 || got[0].ID != third.ID {
-		t.Fatalf("cursor at tombstone failed to surface newer comment: got %v", idsOf(got))
-	}
-}
-
 // TestDeleteCommentNotifiesSubscribers covers the WS-broadcast path:
 // deletion must wake durable subscribers with a nil comment so the WS
 // hub re-broadcasts and connected browser tabs re-fetch. Otherwise the
@@ -335,14 +203,6 @@ func TestDeleteCommentNotifiesSubscribers(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("subscriber not notified on DeleteComment")
 	}
-}
-
-func idsOf(cs []*Comment) []string {
-	out := make([]string, len(cs))
-	for i, c := range cs {
-		out[i] = c.ID
-	}
-	return out
 }
 
 // waitFor polls cond until it returns true or the deadline expires. Used
