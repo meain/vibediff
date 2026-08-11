@@ -24,7 +24,6 @@ interface SettingsPanelProps {
   copyAllFeedback: boolean
   hasComments: boolean
   totalThreads: number
-  pendingThreads: number
   commentCountsByAuthor: { user: number, agents: Map<string, number> }
   viewMode: ViewMode
   onToggleViewMode: () => void
@@ -42,7 +41,6 @@ export default function SettingsPanel({
   copyAllFeedback,
   hasComments,
   totalThreads,
-  pendingThreads,
   commentCountsByAuthor,
   viewMode,
   onToggleViewMode,
@@ -83,7 +81,7 @@ export default function SettingsPanel({
             <div className="text-[10px] font-semibold text-fg-subtle uppercase tracking-wide mb-1">Comments</div>
             {hasComments ? (
               <div className="text-xs text-fg-muted space-y-1">
-                <div>{pendingThreads} pending, {totalThreads} total</div>
+                <div>{totalThreads} total</div>
 
                 {commentCountsByAuthor.user > 0 && (
                   <div className="flex items-center justify-between">

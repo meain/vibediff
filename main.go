@@ -136,13 +136,9 @@ func main() {
 	r.HandleFunc("/api/diff/{file:.+}", handler.GetFileDiff).Methods("GET")
 	r.HandleFunc("/api/review/comment", handler.AddComment).Methods("POST")
 	r.HandleFunc("/api/review/comments", handler.GetComments).Methods("GET")
-	r.HandleFunc("/api/review/comments/open", handler.GetOpenComments).Methods("GET")
-	r.HandleFunc("/api/review/comments/resolved", handler.GetResolvedComments).Methods("GET")
 	r.HandleFunc("/api/review/comment/{id}", handler.UpdateComment).Methods("PATCH")
 	r.HandleFunc("/api/review/comment/{id}", handler.DeleteComment).Methods("DELETE")
 	r.HandleFunc("/api/review/comments", handler.ClearAllComments).Methods("DELETE")
-	r.HandleFunc("/api/review/comment/{id}/resolve", handler.ResolveComment).Methods("POST")
-	r.HandleFunc("/api/review/comment/{id}/reopen", handler.ReopenComment).Methods("POST")
 
 	r.HandleFunc("/docs", handler.ServeDocsPage).Methods("GET")
 

@@ -163,9 +163,6 @@ func validateComment(c *review.Comment) error {
 	if len(c.AuthorName) > 50 {
 		return fmt.Errorf("author_name must be 50 characters or fewer")
 	}
-	if c.Status != "" && c.Status != review.StatusOpen && c.Status != review.StatusResolved {
-		return fmt.Errorf("status must be %q or %q, got %q", review.StatusOpen, review.StatusResolved, c.Status)
-	}
 	return nil
 }
 
@@ -305,16 +302,6 @@ func (h *Handler) GetComments(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, comments)
 }
 
-// GetOpenComments returns all comments with status "open".
-func (h *Handler) GetOpenComments(w http.ResponseWriter, r *http.Request) {
-	h.writeJSON(w, h.reviewStore.GetCommentsByStatus(review.StatusOpen))
-}
-
-// GetResolvedComments returns all comments with status "resolved".
-func (h *Handler) GetResolvedComments(w http.ResponseWriter, r *http.Request) {
-	h.writeJSON(w, h.reviewStore.GetCommentsByStatus(review.StatusResolved))
-}
-
 // UpdateComment replaces the content of an existing comment.
 func (h *Handler) UpdateComment(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
@@ -375,40 +362,6 @@ func (h *Handler) ClearAllComments(w http.ResponseWriter, r *http.Request) {
 	} else {
 		h.reviewStore.Clear()
 	}
-	w.WriteHeader(http.StatusNoContent)
-}
-
-// ResolveComment marks a comment as resolved.
-func (h *Handler) ResolveComment(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	c := h.reviewStore.GetByID(vars["id"])
-	if c == nil {
-		http.Error(w, "Comment not found", http.StatusNotFound)
-		return
-	}
-	dir := c.Directory
-	if !h.reviewStore.SetStatus(vars["id"], review.StatusResolved) {
-		http.Error(w, "Comment not found", http.StatusNotFound)
-		return
-	}
-	_ = h.reviewStore.SaveComments(dir)
-	w.WriteHeader(http.StatusNoContent)
-}
-
-// ReopenComment transitions a comment back to open.
-func (h *Handler) ReopenComment(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	c := h.reviewStore.GetByID(vars["id"])
-	if c == nil {
-		http.Error(w, "Comment not found", http.StatusNotFound)
-		return
-	}
-	dir := c.Directory
-	if !h.reviewStore.SetStatus(vars["id"], review.StatusOpen) {
-		http.Error(w, "Comment not found", http.StatusNotFound)
-		return
-	}
-	_ = h.reviewStore.SaveComments(dir)
 	w.WriteHeader(http.StatusNoContent)
 }
 

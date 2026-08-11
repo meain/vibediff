@@ -15,13 +15,6 @@ const (
 	AuthorAgent = "agent"
 )
 
-// StatusOpen and StatusResolved enumerate Comment.Status values. Resolution
-// is user-driven only; the agent has no tool to flip status.
-const (
-	StatusOpen     = "open"
-	StatusResolved = "resolved"
-)
-
 // Comment is a review note anchored to a file, line range, and (optionally)
 // a specific revision. Revision/Commit pin the point-in-time the user was
 // looking at when the comment was created so consumers can render the
@@ -42,7 +35,6 @@ type Comment struct {
 	Author     string    `json:"author"`
 	AuthorName string    `json:"authorName,omitempty"`
 	ParentID   string    `json:"parentId,omitempty"`
-	Status     string    `json:"status"`
 	Revision   string    `json:"revision,omitempty"`
 	Commit     string    `json:"commit,omitempty"`
 	CreatedAt  time.Time `json:"createdAt"`
@@ -121,18 +113,14 @@ func (s *Store) snapshotSubscribers() []subscription {
 }
 
 // AddComment assigns an ID, applies defaults, and stores the comment.
-// Callers may post partial payloads; Author defaults to "user" and Status
-// defaults to "open" so existing UI clients written before these fields
-// existed continue to work unmodified.
+// Callers may post partial payloads; Author defaults to "user" so existing
+// UI clients written before this field existed continue to work unmodified.
 func (s *Store) AddComment(comment *Comment) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if comment.Author == "" {
 		comment.Author = AuthorUser
-	}
-	if comment.Status == "" {
-		comment.Status = StatusOpen
 	}
 
 	comment.ID = generateID()
@@ -182,21 +170,6 @@ func (s *Store) GetByID(id string) *Comment {
 	return s.comments[id]
 }
 
-// GetCommentsByStatus returns comments with the given status. Used by the
-// /comments/open and /comments/resolved HTTP routes.
-func (s *Store) GetCommentsByStatus(status string) []*Comment {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	comments := make([]*Comment, 0)
-	for _, c := range s.comments {
-		if c.Status == status {
-			comments = append(comments, c)
-		}
-	}
-	return comments
-}
-
 // UpdateContent replaces the text of a comment. Returns false if not found.
 func (s *Store) UpdateContent(id, content string) bool {
 	s.mu.Lock()
@@ -206,21 +179,6 @@ func (s *Store) UpdateContent(id, content string) bool {
 		return false
 	}
 	c.Content = content
-	return true
-}
-
-// SetStatus updates a comment's status. Returns false if the comment was
-// not found. Resolution is invoked from the UI; the agent has no tool to
-// flip status.
-func (s *Store) SetStatus(id, status string) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	c, ok := s.comments[id]
-	if !ok {
-		return false
-	}
-	c.Status = status
 	return true
 }
 

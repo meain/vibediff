@@ -86,15 +86,6 @@ function getAddCommentButton(lineNumber: number): HTMLElement {
   return within(getLineRow(lineNumber)).getByLabelText('Add comment')
 }
 
-/** Finds a rendered CommentDisplay card by its `data-comment-id` attribute. */
-function getCommentCard(commentId: string): HTMLElement {
-  const node = document.querySelector(`[data-comment-id="${commentId}"]`)
-  if (!(node instanceof HTMLElement)) {
-    throw new Error(`No comment card rendered for id "${commentId}"`)
-  }
-  return node
-}
-
 /**
  * Locates the container for a gap's "expand" banner by matching its exact
  * "{N} lines hidden" label text, then walking up to the nearest ancestor
@@ -192,7 +183,6 @@ describe('FileDiff hidden-line expansion', () => {
               lineEnd: 20,
               content: 'existing comment text',
               author: 'user',
-              status: 'open',
               createdAt: '2026-01-01T00:00:00Z',
             },
           ]
@@ -386,9 +376,9 @@ describe('FileDiff hidden-line expansion', () => {
 // hunk lines / gap-top lines / gap-bottom lines rendered as siblings), the
 // leading gap's asymmetric button gating (no "Expand down" before the first
 // hunk) is unconfirmed, getCommentRangeLines' lineOrder extension into
-// expanded lines is unconfirmed, and the reply/resolve/reopen/inline-form
-// wiring on expanded lines was only checked for text presence, not for
-// actually firing callbacks.
+// expanded lines is unconfirmed, and the reply/inline-form wiring on
+// expanded lines was only checked for text presence, not for actually
+// firing callbacks.
 
 /**
  * Split view renders each context/normal line's DiffLine fragment twice
@@ -567,37 +557,6 @@ describe('FileDiff hidden-line expansion -- split view & wiring gaps (Phase 3b)'
     const lastCallArgs = getCommentRangeLines.mock.calls[getCommentRangeLines.mock.calls.length - 1]
     const lineOrderArg = lastCallArgs[1]
     expect(lineOrderArg).toEqual(expect.arrayContaining([16, 17, 18]))
-  })
-
-  it('15. resolve/reopen callbacks fire for comment threads rendered on an expanded line', async () => {
-    const file = buildMainFile()
-    stubFetch(buildMainFullFile())
-    const getCommentsForLine = (_file: string, line: number): Comment[] =>
-      line === 20
-        ? [
-            { id: 'c-open', file: 'foo.go', line: 20, lineEnd: 20, content: 'open comment', author: 'user', status: 'open', createdAt: '2026-01-01T00:00:00Z' },
-            { id: 'c-resolved', file: 'foo.go', line: 20, lineEnd: 20, content: 'resolved comment', author: 'user', status: 'resolved', createdAt: '2026-01-02T00:00:00Z' },
-          ]
-        : []
-    const onResolveComment = vi.fn(async () => undefined)
-    const onReopenComment = vi.fn(async () => undefined)
-
-    render(<FileDiff {...baseProps(file, { getCommentsForLine, onResolveComment, onReopenComment })} />)
-
-    const banner = scopeFromHiddenLabel('34 lines hidden')
-    fireEvent.click(within(banner).getByRole('button', { name: 'Expand' }))
-
-    await waitFor(() => {
-      expect(screen.getByText('open comment')).toBeInTheDocument()
-    })
-
-    const openCard = getCommentCard('c-open')
-    fireEvent.click(within(openCard).getByTitle('Resolve thread'))
-    expect(onResolveComment).toHaveBeenCalledWith('c-open')
-
-    const resolvedCard = getCommentCard('c-resolved')
-    fireEvent.click(within(resolvedCard).getByTitle('Reopen thread'))
-    expect(onReopenComment).toHaveBeenCalledWith('c-resolved')
   })
 
   it('16. renders the inline comment-composition form anchored to an expanded line, and not before expansion', async () => {
@@ -792,7 +751,6 @@ describe('FileDiff hidden-line expansion -- split view & wiring gaps (Phase 3b)'
               lineEnd: 20,
               content: 'existing comment text',
               author: 'user',
-              status: 'open',
               createdAt: '2026-01-01T00:00:00Z',
             },
           ]
@@ -808,37 +766,6 @@ describe('FileDiff hidden-line expansion -- split view & wiring gaps (Phase 3b)'
     await waitFor(() => {
       expect(screen.getByText('existing comment text')).toBeInTheDocument()
     })
-  })
-
-  it('22. split view: resolve/reopen callbacks fire for comment threads rendered on an expanded line', async () => {
-    const file = buildMainFile()
-    stubFetch(buildMainFullFile())
-    const getCommentsForLine = (_file: string, line: number): Comment[] =>
-      line === 20
-        ? [
-            { id: 'c-open', file: 'foo.go', line: 20, lineEnd: 20, content: 'open comment', author: 'user', status: 'open', createdAt: '2026-01-01T00:00:00Z' },
-            { id: 'c-resolved', file: 'foo.go', line: 20, lineEnd: 20, content: 'resolved comment', author: 'user', status: 'resolved', createdAt: '2026-01-02T00:00:00Z' },
-          ]
-        : []
-    const onResolveComment = vi.fn(async () => undefined)
-    const onReopenComment = vi.fn(async () => undefined)
-
-    render(<FileDiff {...baseProps(file, { viewMode: 'split', getCommentsForLine, onResolveComment, onReopenComment })} />)
-
-    const banner = scopeFromHiddenLabel('34 lines hidden')
-    fireEvent.click(within(banner).getByRole('button', { name: 'Expand' }))
-
-    await waitFor(() => {
-      expect(screen.getByText('open comment')).toBeInTheDocument()
-    })
-
-    const openCard = getCommentCard('c-open')
-    fireEvent.click(within(openCard).getByTitle('Resolve thread'))
-    expect(onResolveComment).toHaveBeenCalledWith('c-open')
-
-    const resolvedCard = getCommentCard('c-resolved')
-    fireEvent.click(within(resolvedCard).getByTitle('Reopen thread'))
-    expect(onReopenComment).toHaveBeenCalledWith('c-resolved')
   })
 
   it('23. split view: renders the inline comment-composition form anchored to an expanded line, and not before expansion', async () => {

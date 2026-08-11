@@ -8,26 +8,21 @@ interface CommentDisplayProps {
   onDelete: (id: string) => void
   onUpdate?: (id: string, content: string) => Promise<void>
   onAddReply?: (parentComment: Comment, content: string) => Promise<void>
-  onResolve?: (id: string) => void
-  onReopen?: (id: string) => void
 }
 
 
 interface CommentCardProps {
   comment: Comment
   isReply?: boolean
-  parentResolved?: boolean
   replyCount?: number
   repliesCollapsed?: boolean
   onToggleReplies?: () => void
   onDelete: (id: string) => void
   onUpdate?: (id: string, content: string) => Promise<void>
   onStartReply?: () => void
-  onResolve?: (id: string) => void
-  onReopen?: (id: string) => void
 }
 
-function CommentCard({ comment, isReply, parentResolved, replyCount, repliesCollapsed, onToggleReplies, onDelete, onUpdate, onStartReply, onResolve, onReopen }: CommentCardProps): React.ReactElement {
+function CommentCard({ comment, isReply, replyCount, repliesCollapsed, onToggleReplies, onDelete, onUpdate, onStartReply }: CommentCardProps): React.ReactElement {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(comment.content)
   const [saving, setSaving] = useState(false)
@@ -68,8 +63,6 @@ function CommentCard({ comment, isReply, parentResolved, replyCount, repliesColl
   }
   const isAgent = comment.author === 'agent'
   const canEdit = !isAgent && !!onUpdate
-  const isResolved = comment.status === 'resolved'
-  const dimmed = isResolved || parentResolved
 
   const accentClass = isAgent
     ? 'border-l-info'
@@ -79,8 +72,8 @@ function CommentCard({ comment, isReply, parentResolved, replyCount, repliesColl
     authorLabel = comment.authorName ? `agent:${comment.authorName}` : 'Agent'
   }
   const rootClass = isReply
-    ? `ml-6 mt-1 bg-surface border border-edge rounded-lg overflow-hidden ${dimmed ? 'opacity-60' : ''}`
-    : `bg-surface border border-edge rounded-lg border-l-[3px] ${accentClass} overflow-hidden ${dimmed ? 'opacity-60' : ''}`
+    ? 'ml-6 mt-1 bg-surface border border-edge rounded-lg overflow-hidden'
+    : `bg-surface border border-edge rounded-lg border-l-[3px] ${accentClass} overflow-hidden`
 
   return (
     <div data-comment-id={comment.id} className={rootClass}>
@@ -91,13 +84,6 @@ function CommentCard({ comment, isReply, parentResolved, replyCount, repliesColl
           }`}>
             {authorLabel}
           </span>
-          {!isReply && (
-            <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide ${
-              isResolved ? 'bg-fg-subtle/20 text-fg-muted' : 'bg-success/20 text-success'
-            }`}>
-              {comment.status}
-            </span>
-          )}
           <span className="text-fg-subtle">·</span>
           <span className="text-fg-subtle" title={new Date(comment.createdAt).toLocaleString()}>{formatRelativeTime(comment.createdAt)}</span>
           {!isReply && replyCount !== undefined && replyCount > 0 && (
@@ -135,24 +121,6 @@ function CommentCard({ comment, isReply, parentResolved, replyCount, repliesColl
               title="Reply"
             >
               ↩
-            </button>
-          )}
-          {!editing && !isReply && onResolve && !isResolved && (
-            <button
-              onClick={() => { onResolve(comment.id); }}
-              className="text-fg-subtle hover:text-success text-lg px-2 py-0 rounded hover:bg-success/10 transition-colors cursor-pointer border-none bg-transparent"
-              title="Resolve thread"
-            >
-              ✓
-            </button>
-          )}
-          {!editing && !isReply && onReopen && isResolved && (
-            <button
-              onClick={() => { onReopen(comment.id); }}
-              className="text-fg-subtle hover:text-accent text-lg px-2 py-0 rounded hover:bg-accent/10 transition-colors cursor-pointer border-none bg-transparent"
-              title="Reopen thread"
-            >
-              ↺
             </button>
           )}
           {!editing && (
@@ -204,7 +172,7 @@ function CommentCard({ comment, isReply, parentResolved, replyCount, repliesColl
   )
 }
 
-export default function CommentDisplay({ comments, onDelete, onUpdate, onAddReply, onResolve, onReopen }: CommentDisplayProps): React.ReactElement | null {
+export default function CommentDisplay({ comments, onDelete, onUpdate, onAddReply }: CommentDisplayProps): React.ReactElement | null {
   const [replyingToId, setReplyingToId] = useState<string | null>(null)
   const [replyDraft, setReplyDraft] = useState('')
   const [replySaving, setReplySaving] = useState(false)
@@ -256,7 +224,6 @@ export default function CommentDisplay({ comments, onDelete, onUpdate, onAddRepl
     <div className="mx-4 my-2 space-y-2 max-w-2xl">
       {threads.map(thread => {
         const isCollapsed = collapsedThreads.has(thread.root.id)
-        const isResolved = thread.root.status === 'resolved'
         return (
         <div key={thread.root.id}>
           <CommentCard
@@ -267,15 +234,12 @@ export default function CommentDisplay({ comments, onDelete, onUpdate, onAddRepl
             onDelete={onDelete}
             onUpdate={onUpdate}
             onStartReply={onAddReply ? () => { setReplyingToId(thread.root.id); setReplyDraft(''); } : undefined}
-            onResolve={onResolve}
-            onReopen={onReopen}
           />
           {!isCollapsed && thread.replies.map(reply => (
             <CommentCard
               key={reply.id}
               comment={reply}
               isReply
-              parentResolved={isResolved}
               onDelete={onDelete}
               onUpdate={onUpdate}
               onStartReply={onAddReply ? () => { setReplyingToId(thread.root.id); setReplyDraft(''); } : undefined}

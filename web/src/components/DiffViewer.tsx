@@ -77,14 +77,12 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
 
   const { currentDirectory, backend, directories, homeDir, setCurrentDirectory, registerDirectory, removeDirectory, reorderDirectories, validateDirectory, setAlias } = useDirectory()
   const { data, loading, error, refetch } = useDiff(currentDirectory, diffType, selectedRevision)
-  const [copyFeedback, setCopyFeedback] = useState(false)
   const [copyAllFeedback, setCopyAllFeedback] = useState(false)
   const [showComments, setShowComments] = useState(true)
   const { lastUpdate, lastUpdateDir } = useWebSocketUpdates()
-  const { comments, addComment, updateComment, deleteComment, resolveComment, reopenComment, getCommentsForLine, getCommentRangeLines, formatCommentsForExport, formatPendingCommentsForExport, clearComments, fetchError, clearFetchError } = useComments(currentDirectory, selectedRevision)
+  const { comments, addComment, updateComment, deleteComment, getCommentsForLine, getCommentRangeLines, formatCommentsForExport, clearComments, fetchError, clearFetchError } = useComments(currentDirectory, selectedRevision)
   const { reviewedFiles, toggleReviewed, clearReviewed, validateReviewed } = useReviewedFiles(currentDirectory, selectedRevision)
   const totalThreads = comments.filter(c => !c.parentId).length
-  const pendingThreads = comments.filter(c => !c.parentId && c.status === 'open').length
   const commentCountsByAuthor = useMemo(() => {
     let user = 0
     const agents = new Map<string, number>()
@@ -472,20 +470,6 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
         action: () => { handleToggleReviewed(file); },
       })
     }
-    if (pendingThreads > 0) {
-      items.push({
-        id: 'copy-pending-comments',
-        section: 'Actions',
-        label: 'Copy pending comments',
-        icon: <ClipboardDocumentIcon />,
-        action: () => {
-          void navigator.clipboard.writeText(formatPendingCommentsForExport(revisions)).then(() => {
-            setCopyFeedback(true)
-            setTimeout(() => { setCopyFeedback(false); }, 1500)
-          })
-        },
-      })
-    }
     if (comments.length > 0) {
       items.push({
         id: 'copy-all-comments',
@@ -732,8 +716,8 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
     return items
   }, [
     wrapLines, viewMode, displayMode, allFilesCollapsed, toggleAllCollapse, fileViewMode, showComments,
-    isDark, toggleDark, backend, selectedRevision, diffType, pendingThreads, comments.length,
-    formatPendingCommentsForExport, revisions, formatCommentsForExport, handleClearComments,
+    isDark, toggleDark, backend, selectedRevision, diffType, comments.length,
+    revisions, formatCommentsForExport, handleClearComments,
     handleClearReviewed, selectedFile, reviewedFiles, handleToggleReviewed, goToOlderCommit,
     goToNewerCommit, currentRevIndex, data, directories, currentDirectory, setCurrentDirectory, registerDirectory,
   ])
@@ -793,37 +777,32 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
               </>
             )}
 
-            {/* Comment Actions (copy pending / clear) */}
-            {(pendingThreads > 0 || comments.length > 0) && (
+            {/* Comment Actions (clear) */}
+            {comments.length > 0 && (
               <div className="relative pt-[7px]">
                 <span className="absolute top-0 left-2 px-1 bg-surface-raised text-[10px] text-fg-subtle leading-none">Comments</span>
                 <div className="flex border border-edge/60 rounded-md overflow-hidden">
-                {pendingThreads > 0 && (
-                  <button
-                    onClick={() => {
-                      void navigator.clipboard.writeText(formatPendingCommentsForExport(revisions)).then(() => {
-                        setCopyFeedback(true)
-                        setTimeout(() => { setCopyFeedback(false); }, 1500)
-                      })
-                    }}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium text-fg-muted hover:bg-surface-inset hover:text-fg transition-colors cursor-pointer ${comments.length > 0 ? 'rounded-l-md border-r border-edge/60' : 'rounded-md'}`}
-                    title="Copy pending review comments as markdown"
-                  >
-                    <ClipboardDocumentIcon className="w-3.5 h-3.5 shrink-0" strokeWidth={2} />
-                    {copyFeedback ? 'Copied!' : 'Copy'}
-                  </button>
-                )}
-
-                {comments.length > 0 && (
-                  <button
-                    onClick={handleClearComments}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium text-fg-muted hover:bg-danger/10 hover:text-danger transition-colors cursor-pointer ${pendingThreads > 0 ? 'rounded-r-md' : 'rounded-md'}`}
-                    title="Clear comments"
-                  >
-                    <TrashIcon className="w-3.5 h-3.5 shrink-0" strokeWidth={2} />
-                    Clear
-                  </button>
-                )}
+                <button
+                  onClick={() => {
+                    void navigator.clipboard.writeText(formatCommentsForExport(revisions)).then(() => {
+                      setCopyAllFeedback(true)
+                      setTimeout(() => { setCopyAllFeedback(false); }, 1500)
+                    })
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium text-fg-muted hover:bg-surface-inset hover:text-fg transition-colors cursor-pointer rounded-l-md border-r border-edge/60"
+                  title="Copy review comments as markdown"
+                >
+                  <ClipboardDocumentIcon className="w-3.5 h-3.5 shrink-0" strokeWidth={2} />
+                  {copyAllFeedback ? 'Copied!' : 'Copy'}
+                </button>
+                <button
+                  onClick={handleClearComments}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium text-fg-muted hover:bg-danger/10 hover:text-danger transition-colors cursor-pointer rounded-r-md"
+                  title="Clear comments"
+                >
+                  <TrashIcon className="w-3.5 h-3.5 shrink-0" strokeWidth={2} />
+                  Clear
+                </button>
                 </div>
               </div>
             )}
@@ -865,7 +844,6 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
               copyAllFeedback={copyAllFeedback}
               hasComments={comments.length > 0}
               totalThreads={totalThreads}
-              pendingThreads={pendingThreads}
               commentCountsByAuthor={commentCountsByAuthor}
               viewMode={viewMode}
               onToggleViewMode={() => { setViewMode(viewMode === 'unified' ? 'split' : 'unified'); }}
@@ -1023,8 +1001,6 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
                 onDeleteComment={deleteComment}
                 onUpdateComment={updateComment}
                 onAddReply={async (parent, content) => { await addComment(parent.file, parent.line, content, parent.lineEnd, parent.id) }}
-                onResolveComment={resolveComment}
-                onReopenComment={reopenComment}
                 wrapLines={wrapLines}
                 diffType={diffType}
                 selectedRevision={selectedRevision}
@@ -1032,7 +1008,6 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
                 isReviewed={reviewedFiles.has(file.path)}
                 onToggleReviewed={() => { handleToggleReviewed(file); }}
                 commentCount={showComments ? comments.filter(c => c.file === file.path && !c.parentId).length : 0}
-                pendingCommentCount={showComments ? comments.filter(c => c.file === file.path && !c.parentId && c.status === 'open').length : 0}
                 activeComment={commentDialog?.file === file.path ? { line: commentDialog.line, lineEnd: commentDialog.lineEnd } : null}
                 onSubmitComment={(content) => {
                   if (commentDialog) {
@@ -1071,7 +1046,6 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
               isReviewed={reviewedFiles.has(selectedFile.path)}
               onToggleReviewed={handleSingleFileToggleReviewed}
               commentCount={showComments ? comments.filter(c => c.file === selectedFile.path && !c.parentId).length : 0}
-              pendingCommentCount={showComments ? comments.filter(c => c.file === selectedFile.path && !c.parentId && c.status === 'open').length : 0}
               activeComment={commentDialog?.file === selectedFile.path ? { line: commentDialog.line, lineEnd: commentDialog.lineEnd } : null}
               onSubmitComment={handleSingleFileSubmitComment}
               onCancelComment={handleCancelComment}
@@ -1101,8 +1075,6 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
         onDeleteComment={deleteComment}
         onUpdateComment={updateComment}
         onAddReply={async (parent, content) => { await addComment(parent.file, parent.line, content, parent.lineEnd, parent.id) }}
-        onResolveComment={resolveComment}
-        onReopenComment={reopenComment}
         onAddComment={(file, line, content, lineEnd) => {
           void addComment(file, line, content, lineEnd).catch((err: unknown) => {
             console.error('Failed to add comment:', err)
