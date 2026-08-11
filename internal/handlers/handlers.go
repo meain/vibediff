@@ -217,6 +217,21 @@ func (h *Handler) AddComment(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Resolve an empty revision (the UI's "@" row) to the concrete
+	// working-copy revision ID immediately, rather than leaving it blank.
+	// A blank revision would otherwise keep floating with whatever @
+	// happens to be later, so once @ gets committed and a new empty
+	// working-copy revision appears, the comment would silently detach
+	// from the commit it was actually written against. jj change IDs
+	// (unlike commit SHAs) survive `jj commit`/`jj describe`, so pinning
+	// to the resolved ID keeps the comment attached to the right revision
+	// even after it stops being the working copy.
+	if comment.Revision == "" {
+		if id, err := h.gitService.WorkingCopyRevisionID(comment.Directory); err == nil {
+			comment.Revision = id
+		}
+	}
+
 	// Pin the underlying commit SHA so the comment remains anchored to
 	// the code the user was looking at.
 	if comment.Commit == "" {
