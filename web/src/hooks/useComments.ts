@@ -47,8 +47,8 @@ export function useComments(currentDirectory?: string, selectedRevision?: string
   }, [currentDirectory, selectedRevision])
 
   // Fetch comments on mount, on directory/revision change, and whenever the
-  // server broadcasts a comment_changed event (e.g. an agent reply added
-  // by an external client posting to the comment API).
+  // server broadcasts a comment_changed event (e.g. another browser tab
+  // adding or editing a comment).
   useEffect(() => {
     const fetchComments = async (): Promise<void> => {
       try {
@@ -172,10 +172,6 @@ export function useComments(currentDirectory?: string, selectedRevision?: string
     if (comments.length === 0) return ''
 
     const threads = new Map(groupIntoThreads(comments).map(t => [t.root.id, t]))
-    const authorLabel = (c: Comment): string => {
-      if (c.author !== 'agent') return 'User'
-      return c.authorName ? `agent:${c.authorName}` : 'Agent'
-    }
 
     const renderSection = (sectionRoots: Comment[]): string[] => {
       // Group roots by file
@@ -190,11 +186,11 @@ export function useComments(currentDirectory?: string, selectedRevision?: string
         out.push(`### ${file}`, '')
         for (const root of roots) {
           const lineRef = formatLineRef(root.line, root.lineEnd)
-          out.push(`- **${lineRef}** [${authorLabel(root)}]: ${root.content}`)
+          out.push(`- **${lineRef}**: ${root.content}`)
           const thread = threads.get(root.id)
           if (thread) {
             for (const reply of thread.replies) {
-              out.push(`  - [${authorLabel(reply)}]: ${reply.content}`)
+              out.push(`  - ${reply.content}`)
             }
           }
         }

@@ -12,8 +12,6 @@ import {
   ClipboardDocumentIcon,
   SunIcon,
   MoonIcon,
-  UserIcon,
-  SparklesIcon,
   QuestionMarkCircleIcon,
 } from '@heroicons/react/24/outline'
 
@@ -24,7 +22,6 @@ interface SettingsPanelProps {
   copyAllFeedback: boolean
   hasComments: boolean
   totalThreads: number
-  commentCountsByAuthor: { user: number, agents: Map<string, number> }
   viewMode: ViewMode
   onToggleViewMode: () => void
   displayMode: 'single' | 'all'
@@ -41,7 +38,6 @@ export default function SettingsPanel({
   copyAllFeedback,
   hasComments,
   totalThreads,
-  commentCountsByAuthor,
   viewMode,
   onToggleViewMode,
   displayMode,
@@ -82,31 +78,6 @@ export default function SettingsPanel({
             {hasComments ? (
               <div className="text-xs text-fg-muted space-y-1">
                 <div>{totalThreads} total</div>
-
-                {commentCountsByAuthor.user > 0 && (
-                  <div className="flex items-center justify-between">
-                    <span className="flex items-center gap-1.5">
-                      <UserIcon className="w-3 h-3 shrink-0" />
-                      User
-                    </span>
-                    <span className="text-fg-subtle">{commentCountsByAuthor.user}</span>
-                  </div>
-                )}
-
-                {commentCountsByAuthor.agents.size > 0 && (
-                  <div>
-                    <div className="text-[10px] font-semibold text-fg-subtle uppercase tracking-wide mt-1.5 mb-0.5">Agents</div>
-                    {[...commentCountsByAuthor.agents.entries()].map(([name, count]) => (
-                      <div key={name} className="flex items-center justify-between">
-                        <span className="flex items-center gap-1.5">
-                          <SparklesIcon className="w-3 h-3 shrink-0" />
-                          {name}
-                        </span>
-                        <span className="text-fg-subtle">{count}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
             ) : (
               <div className="text-xs text-fg-muted">No comments yet</div>

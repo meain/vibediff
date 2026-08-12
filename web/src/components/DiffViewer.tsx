@@ -83,19 +83,6 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
   const { comments, addComment, updateComment, deleteComment, getCommentsForLine, getCommentRangeLines, formatCommentsForExport, clearComments, fetchError, clearFetchError } = useComments(currentDirectory, selectedRevision)
   const { reviewedFiles, toggleReviewed, clearReviewed, validateReviewed } = useReviewedFiles(currentDirectory, selectedRevision)
   const totalThreads = comments.filter(c => !c.parentId).length
-  const commentCountsByAuthor = useMemo(() => {
-    let user = 0
-    const agents = new Map<string, number>()
-    for (const c of comments) {
-      if (c.author !== 'agent') {
-        user += 1
-        continue
-      }
-      const label = c.authorName ?? 'Agent'
-      agents.set(label, (agents.get(label) ?? 0) + 1)
-    }
-    return { user, agents }
-  }, [comments])
   const allFilesCollapsed = collapsedFiles.size === data?.files.length
   let collapseAllTitle = 'Collapse all'
   if (displayMode === 'single') collapseAllTitle = 'Available in All Files mode'
@@ -844,7 +831,6 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
               copyAllFeedback={copyAllFeedback}
               hasComments={comments.length > 0}
               totalThreads={totalThreads}
-              commentCountsByAuthor={commentCountsByAuthor}
               viewMode={viewMode}
               onToggleViewMode={() => { setViewMode(viewMode === 'unified' ? 'split' : 'unified'); }}
               displayMode={displayMode}

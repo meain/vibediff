@@ -118,16 +118,11 @@ Create a new comment.
   "lineEnd":    42,
   "content":    "Why is this offset by one?",
   "revision":   "",
-  "parentId":   "",
-  "authorName": ""
+  "parentId":   ""
 }
 ```
 
 Returns the created Comment object with its generated `id`.
-
-`authorName` is optional (max 50 characters) and is typically used by agent
-clients to tag which kind of agent posted the comment (e.g. `"explainer"`);
-the UI renders it as `agent:<authorName>`.
 
 **Replies**: when `parentId` is set, `file`, `line`, `lineEnd`, `revision`, and
 `directory` are automatically inherited from the parent — you only need to
@@ -253,8 +248,6 @@ Reconnect with exponential back-off if the connection drops.
   "line":      42,
   "lineEnd":   44,
   "content":   "Why is this offset by one?",
-  "author":    "user",
-  "authorName": "",
   "parentId":  "",
   "revision":  "",
   "commit":    "abc1234",
@@ -262,8 +255,6 @@ Reconnect with exponential back-off if the connection drops.
 }
 ```
 
-`author` is `"user"` or `"agent"`.
-`authorName` is an optional free-form tag (e.g. `"explainer"`) naming the kind of agent that posted the comment; the UI renders it as `agent:<authorName>`.
 `parentId` is empty for root comments; set to a root comment's `id` for replies.
 The API always returns a flat array — clients group by `parentId`.
 `revision` is empty string for working-copy comments.

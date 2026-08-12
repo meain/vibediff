@@ -157,12 +157,6 @@ func validateComment(c *review.Comment) error {
 			return fmt.Errorf("line is required")
 		}
 	}
-	if c.Author != "" && c.Author != review.AuthorUser && c.Author != review.AuthorAgent {
-		return fmt.Errorf("author must be %q or %q, got %q", review.AuthorUser, review.AuthorAgent, c.Author)
-	}
-	if len(c.AuthorName) > 50 {
-		return fmt.Errorf("author_name must be 50 characters or fewer")
-	}
 	return nil
 }
 

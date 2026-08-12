@@ -7,37 +7,24 @@ import (
 	"time"
 )
 
-// AuthorUser and AuthorAgent enumerate Comment.Author values. User comments
-// originate from the vibediff browser UI; agent comments are written by an
-// external client posting to the comment API.
-const (
-	AuthorUser  = "user"
-	AuthorAgent = "agent"
-)
-
 // Comment is a review note anchored to a file, line range, and (optionally)
 // a specific revision. Revision/Commit pin the point-in-time the user was
 // looking at when the comment was created so consumers can render the
 // original code even after the working copy drifts.
 // Directory scopes the comment to a specific project directory, enabling
 // multi-project support without separate server state.
-// AuthorName is an optional free-form tag, typically set by agent clients
-// to identify which kind of agent posted the comment (e.g. "explainer").
-// The UI renders it as "agent:<authorName>" alongside the author badge.
 type Comment struct {
-	ID         string    `json:"id"`
-	Directory  string    `json:"directory,omitempty"`
-	File       string    `json:"file"`
-	Line       int       `json:"line,omitempty"`
-	LineEnd    int       `json:"lineEnd,omitempty"`
-	Side       string    `json:"side,omitempty"`
-	Content    string    `json:"content"`
-	Author     string    `json:"author"`
-	AuthorName string    `json:"authorName,omitempty"`
-	ParentID   string    `json:"parentId,omitempty"`
-	Revision   string    `json:"revision,omitempty"`
-	Commit     string    `json:"commit,omitempty"`
-	CreatedAt  time.Time `json:"createdAt"`
+	ID        string    `json:"id"`
+	Directory string    `json:"directory,omitempty"`
+	File      string    `json:"file"`
+	Line      int       `json:"line,omitempty"`
+	LineEnd   int       `json:"lineEnd,omitempty"`
+	Side      string    `json:"side,omitempty"`
+	Content   string    `json:"content"`
+	ParentID  string    `json:"parentId,omitempty"`
+	Revision  string    `json:"revision,omitempty"`
+	Commit    string    `json:"commit,omitempty"`
+	CreatedAt time.Time `json:"createdAt"`
 }
 
 // Subscriber receives a callback after a comment is added to the store.
@@ -78,8 +65,8 @@ func NewStore() *Store {
 // Subscribe registers a durable callback that fires on every AddComment.
 // Returns an unsubscribe function the caller must invoke when done; the
 // store does not auto-remove subscribers. The WebSocket hub registers
-// once at startup so the UI re-fetches comments whenever an agent reply
-// or other server-side write lands. It never unsubscribes.
+// once at startup so the UI re-fetches comments whenever a server-side
+// write lands. It never unsubscribes.
 //
 // The unsubscribe function is idempotent and safe to call after the
 // store has been cleared.
@@ -112,16 +99,10 @@ func (s *Store) snapshotSubscribers() []subscription {
 	return out
 }
 
-// AddComment assigns an ID, applies defaults, and stores the comment.
-// Callers may post partial payloads; Author defaults to "user" so existing
-// UI clients written before this field existed continue to work unmodified.
+// AddComment assigns an ID, sets CreatedAt, and stores the comment.
 func (s *Store) AddComment(comment *Comment) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-
-	if comment.Author == "" {
-		comment.Author = AuthorUser
-	}
 
 	comment.ID = generateID()
 	comment.CreatedAt = time.Now()
@@ -129,9 +110,8 @@ func (s *Store) AddComment(comment *Comment) {
 
 	// Fan out to durable subscribers off the write path. AddComment
 	// returns immediately; subscribers run concurrently in their own
-	// goroutines. Filtering (user vs agent, status) is the subscriber's
-	// responsibility — the store delivers every AddComment to every
-	// active subscriber.
+	// goroutines. The store delivers every AddComment to every active
+	// subscriber; any filtering is the subscriber's responsibility.
 	for _, sub := range s.snapshotSubscribers() {
 		go sub.fn(comment)
 	}
@@ -189,8 +169,8 @@ func (s *Store) UpdateContent(id, content string) bool {
 // Fires subscribers with a nil comment so the WS hub broadcasts a
 // comment_changed event and connected browser tabs re-fetch. The
 // cascade-for-roots behavior is what keeps the UI thread coherent: a
-// user clicking × on a parent must not leave the agent's reply
-// orphaned in the diff view.
+// user clicking × on a parent must not leave its replies orphaned in
+// the diff view.
 func (s *Store) DeleteComment(id string) bool {
 	s.mu.Lock()
 

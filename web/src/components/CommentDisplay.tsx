@@ -61,16 +61,9 @@ function CommentCard({ comment, isReply, replyCount, repliesCollapsed, onToggleR
       setDraft(comment.content)
     }
   }
-  const isAgent = comment.author === 'agent'
-  const canEdit = !isAgent && !!onUpdate
+  const canEdit = !!onUpdate
 
-  const accentClass = isAgent
-    ? 'border-l-info'
-    : 'border-l-accent'
-  let authorLabel = 'User'
-  if (isAgent) {
-    authorLabel = comment.authorName ? `agent:${comment.authorName}` : 'Agent'
-  }
+  const accentClass = 'border-l-accent'
   const rootClass = isReply
     ? 'ml-6 mt-1 bg-surface border border-edge rounded-lg overflow-hidden'
     : `bg-surface border border-edge rounded-lg border-l-[3px] ${accentClass} overflow-hidden`
@@ -79,12 +72,6 @@ function CommentCard({ comment, isReply, replyCount, repliesCollapsed, onToggleR
     <div data-comment-id={comment.id} className={rootClass}>
       <div className="flex items-center justify-between px-3 py-1.5 bg-surface-raised gap-2">
         <div className="text-xs text-fg-muted flex items-center gap-1.5 flex-wrap">
-          <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide ${
-            isAgent ? 'bg-info/20 text-info' : 'bg-accent/20 text-accent'
-          }`}>
-            {authorLabel}
-          </span>
-          <span className="text-fg-subtle">·</span>
           <span className="text-fg-subtle" title={new Date(comment.createdAt).toLocaleString()}>{formatRelativeTime(comment.createdAt)}</span>
           {!isReply && replyCount !== undefined && replyCount > 0 && (
             <button

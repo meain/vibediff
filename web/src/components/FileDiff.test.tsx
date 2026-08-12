@@ -182,7 +182,6 @@ describe('FileDiff hidden-line expansion', () => {
               line: 20,
               lineEnd: 20,
               content: 'existing comment text',
-              author: 'user',
               createdAt: '2026-01-01T00:00:00Z',
             },
           ]
@@ -750,7 +749,6 @@ describe('FileDiff hidden-line expansion -- split view & wiring gaps (Phase 3b)'
               line: 20,
               lineEnd: 20,
               content: 'existing comment text',
-              author: 'user',
               createdAt: '2026-01-01T00:00:00Z',
             },
           ]

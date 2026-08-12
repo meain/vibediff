@@ -53,8 +53,6 @@ export interface Revision {
   deletions?: number
 }
 
-export type CommentAuthor = 'user' | 'agent'
-
 export interface Comment {
   id: string
   file: string
@@ -62,8 +60,6 @@ export interface Comment {
   lineEnd: number
   side?: string
   content: string
-  author: CommentAuthor
-  authorName?: string
   parentId?: string
   revision?: string
   commit?: string

@@ -116,20 +116,18 @@ func TestMultipleSubscribersIndependent(t *testing.T) {
 }
 
 // TestDeleteCommentCascadesRepliesForRoot makes the cascade contract
-// explicit: removing a thread root drops every agent reply pointing at
-// it via ParentID. The cascade applies whether the deletion came from
-// the user clicking × in the UI or an agent-driven client deleting the
-// thread — without it, the UI strands the agent's reply as a top-level
-// OPEN comment after the user closes the parent.
+// explicit: removing a thread root drops every reply pointing at it via
+// ParentID. Without it, the UI would strand replies as top-level
+// comments after the user closes the parent.
 func TestDeleteCommentCascadesRepliesForRoot(t *testing.T) {
 	s := NewStore()
 
 	parent := &Comment{File: "a.go", Content: "fix this"}
 	s.AddComment(parent)
 
-	reply1 := &Comment{File: "a.go", Content: "fixed", Author: AuthorAgent, ParentID: parent.ID}
+	reply1 := &Comment{File: "a.go", Content: "fixed", ParentID: parent.ID}
 	s.AddComment(reply1)
-	reply2 := &Comment{File: "a.go", Content: "and noted", Author: AuthorAgent, ParentID: parent.ID}
+	reply2 := &Comment{File: "a.go", Content: "and noted", ParentID: parent.ID}
 	s.AddComment(reply2)
 
 	other := &Comment{File: "b.go", Content: "unrelated"}
@@ -156,15 +154,15 @@ func TestDeleteCommentCascadesRepliesForRoot(t *testing.T) {
 // TestDeleteCommentLeavesParentForReply checks the other half of the
 // cascade rule: deleting a reply removes only that reply, never its
 // parent or sibling replies. This matches the UI affordance — a user
-// who clicks × on an agent reply expects to drop just that reply.
+// who clicks × on a reply expects to drop just that reply.
 func TestDeleteCommentLeavesParentForReply(t *testing.T) {
 	s := NewStore()
 
 	parent := &Comment{Content: "parent"}
 	s.AddComment(parent)
-	reply1 := &Comment{Content: "first reply", Author: AuthorAgent, ParentID: parent.ID}
+	reply1 := &Comment{Content: "first reply", ParentID: parent.ID}
 	s.AddComment(reply1)
-	reply2 := &Comment{Content: "second reply", Author: AuthorAgent, ParentID: parent.ID}
+	reply2 := &Comment{Content: "second reply", ParentID: parent.ID}
 	s.AddComment(reply2)
 
 	if !s.DeleteComment(reply1.ID) {

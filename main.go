@@ -112,8 +112,8 @@ func main() {
 	wsHub := handlers.NewWSHub()
 	go wsHub.Run()
 
-	// Notify the UI whenever a comment is added — covers agent replies
-	// posted by an external client through the comment API.
+	// Notify the UI whenever a comment is added, so connected browser
+	// tabs re-fetch and stay in sync.
 	_ = reviewStore.Subscribe(func(c *review.Comment) {
 		dir := ""
 		if c != nil {

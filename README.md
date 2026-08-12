@@ -30,7 +30,7 @@ A local Git/Jujutsu diff viewer that runs entirely on your machine. Review your 
 - ⌨️ Keyboard shortcuts for navigation (j/k, r to toggle reviewed, ? for help)
 - 🔧 Supports both Git and Jujutsu (jj) repositories
 - 📌 Sticky file diff headers for easy navigation
-- 🧵 Threaded comments with author badges (user / agent) and status (open / resolved)
+- 🧵 Threaded comments and replies
 - 📍 Comments pinned to the revision and commit SHA they were made against
 
 ## Installation
