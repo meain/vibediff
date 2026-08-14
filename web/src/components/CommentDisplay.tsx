@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import type { Comment } from '../types/diff'
 import { formatRelativeTime } from '../utils/time'
 import { groupIntoThreads } from '../utils/threads'
+import { parseCommentSegments, pairLinesForDiff, type DiffToken, type PairedLine } from '../utils/suggestions'
 
 interface CommentDisplayProps {
   comments: Comment[]
@@ -12,6 +13,87 @@ interface CommentDisplayProps {
   onReopen?: (id: string) => void
 }
 
+
+// Renders one intra-line highlighted row (a paired `original`/`suggested` line's
+// tokens, or a plain unpaired line when `tokens` is absent).
+function DiffTokenLine({ text, tokens, highlightClassName }: { text: string; tokens?: DiffToken[]; highlightClassName: string }): React.ReactElement {
+  if (!tokens) return <>{text}</>
+  return (
+    <>
+      {tokens.map((token, i) => (
+        token.type === 'unchanged'
+          ? <span key={i}>{token.text}</span>
+          : <span key={i} className={highlightClassName}>{token.text}</span>
+      ))}
+    </>
+  )
+}
+
+// GitHub-style "Suggested change" box: red (removed) lines above green (added)
+// lines, word-level highlighting for paired lines per `pairLinesForDiff`.
+//
+// This renders with plain styled markup rather than react-diff-view's
+// <Diff>/<Hunk> components: those are built around parsing a real unified diff
+// (LCS-based line alignment via gitdiff-parser), which doesn't fit the plan's
+// fixed index-based pairing algorithm (pair line i<->i, no LCS realignment).
+// Building a synthetic hunk/change-object structure to satisfy react-diff-view's
+// internal invariants (line numbers, change keys, gutter rendering) added
+// complexity without benefit here, so a small custom renderer is used instead.
+function SuggestionDiffBox({ originalContent, suggestionText }: { originalContent?: string; suggestionText: string }): React.ReactElement {
+  const suggestedLines = suggestionText.split('\n')
+
+  if (originalContent === undefined) {
+    // Comments predating this feature have no stored OriginalContent — render
+    // a plain add-only box instead of a diff (nothing to diff against).
+    return (
+      <div className="my-1.5 rounded-md border border-edge overflow-hidden font-mono text-xs">
+        {suggestedLines.map((text, i) => (
+          <div key={i} className="bg-success/10 text-fg px-2.5 py-0.5 whitespace-pre-wrap break-all">
+            <span className="select-none text-success mr-2">+</span>{text}
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  const pairs: PairedLine[] = pairLinesForDiff(originalContent.split('\n'), suggestedLines)
+
+  return (
+    <div className="my-1.5 rounded-md border border-edge overflow-hidden font-mono text-xs">
+      {pairs.map((pair, i) => (
+        <div key={i}>
+          {pair.original !== undefined && (
+            <div className="bg-danger/10 text-fg px-2.5 py-0.5 whitespace-pre-wrap break-all">
+              <span className="select-none text-danger mr-2">−</span>
+              <DiffTokenLine text={pair.original} tokens={pair.originalTokens} highlightClassName="bg-danger/30 rounded-sm" />
+            </div>
+          )}
+          {pair.suggested !== undefined && (
+            <div className="bg-success/10 text-fg px-2.5 py-0.5 whitespace-pre-wrap break-all">
+              <span className="select-none text-success mr-2">+</span>
+              <DiffTokenLine text={pair.suggested} tokens={pair.suggestedTokens} highlightClassName="bg-success/30 rounded-sm" />
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// Renders a comment body: plain text segments as today, ```suggestion fences
+// as structured diff boxes.
+function CommentBody({ comment }: { comment: Comment }): React.ReactElement {
+  const segments = parseCommentSegments(comment.content)
+  return (
+    <>
+      {segments.map((segment, i) => (
+        segment.type === 'text'
+          ? (segment.value.length > 0 && <div key={i} className="whitespace-pre-wrap">{segment.value}</div>)
+          : <SuggestionDiffBox key={i} originalContent={comment.originalContent} suggestionText={segment.value} />
+      ))}
+    </>
+  )
+}
 
 interface CommentCardProps {
   comment: Comment
@@ -106,7 +188,7 @@ function CommentCard({ comment, isReply, parentResolved, replyCount, repliesColl
               className="text-fg-subtle hover:text-fg text-[10px] px-1.5 py-0.5 rounded hover:bg-surface-inset transition-colors cursor-pointer border-none bg-transparent"
               title={repliesCollapsed ? 'Show replies' : 'Hide replies'}
             >
-              {repliesCollapsed ? `▸ ${replyCount}` : `▾ ${replyCount}`}
+              {repliesCollapsed ? `▸ ${String(replyCount)}` : `▾ ${String(replyCount)}`}
             </button>
           )}
           {!isReply && comment.commit && (
@@ -196,8 +278,8 @@ function CommentCard({ comment, isReply, parentResolved, replyCount, repliesColl
           </div>
         </div>
       ) : (
-        <div className="px-3 py-2 text-sm leading-relaxed text-fg whitespace-pre-wrap">
-          {comment.content}
+        <div className="px-3 py-2 text-sm leading-relaxed text-fg">
+          <CommentBody comment={comment} />
         </div>
       )}
     </div>

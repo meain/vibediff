@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useContext, useMemo } from 'react'
 import type { Comment, Revision } from '../types/diff'
 import { WebSocketContext } from '../contexts/WebSocketContext'
 import { groupIntoThreads } from '../utils/threads'
+import { parseCommentSegments, formatSuggestionExportHunk } from '../utils/suggestions'
 
 // Deleted lines are keyed by the negative of their old-file line number (see
 // FileDiff.tsx's lineNumberOf), so a negative value here means the comment
@@ -15,9 +16,27 @@ function formatLineRef(line: number, lineEnd: number): string {
   return `Lines ${String(Math.abs(line))}${startTag}–${String(Math.abs(lineEnd))}${endTag}`
 }
 
+// Renders a comment's content for export/copy, converting any ```suggestion
+// fenced block into a unified-diff hunk (wrapped in a ```diff fence) anchored
+// against the comment's stored originalContent. See PLAN.md "Unified diff
+// export format" and "Multiple suggestion blocks in one comment".
+function renderContentForExport(comment: Comment): string {
+  const segments = parseCommentSegments(comment.content)
+  return segments.map(segment => {
+    if (segment.type === 'text') {
+      return segment.value
+    }
+    if (comment.originalContent !== undefined) {
+      const hunk = formatSuggestionExportHunk(comment.originalContent, segment.value, comment.line, comment.lineEnd)
+      return `\`\`\`diff\n${hunk}\n\`\`\``
+    }
+    return `\`\`\`suggestion\n${segment.value}\n\`\`\``
+  }).join('\n')
+}
+
 interface UseCommentsReturn {
   comments: Comment[]
-  addComment: (file: string, line: number, content: string, lineEnd: number, parentId?: string) => Promise<Comment>
+  addComment: (file: string, line: number, content: string, lineEnd: number, parentId?: string, originalContent?: string) => Promise<Comment>
   updateComment: (id: string, content: string) => Promise<void>
   deleteComment: (id: string) => Promise<void>
   resolveComment: (id: string) => Promise<void>
@@ -77,7 +96,7 @@ export function useComments(currentDirectory?: string, selectedRevision?: string
     void fetchComments()
   }, [currentDirectory, lastCommentUpdate, selectedRevision])
 
-  const addComment = useCallback(async (file: string, line: number, content: string, lineEnd: number, parentId?: string) => {
+  const addComment = useCallback(async (file: string, line: number, content: string, lineEnd: number, parentId?: string, originalContent?: string) => {
     try {
       // selectedRevision is empty for the working-copy view; the server resolves
       // an empty revision to the working-copy commit (HEAD / @).
@@ -87,6 +106,9 @@ export function useComments(currentDirectory?: string, selectedRevision?: string
       }
       if (parentId) {
         body.parentId = parentId
+      }
+      if (originalContent !== undefined) {
+        body.originalContent = originalContent
       }
       const response = await fetch('/api/review/comment', {
         method: 'POST',
@@ -213,11 +235,11 @@ export function useComments(currentDirectory?: string, selectedRevision?: string
         out.push(`### ${file}`, '')
         for (const root of roots) {
           const lineRef = formatLineRef(root.line, root.lineEnd)
-          out.push(`- **${lineRef}** [${authorLabel(root)}]: ${root.content}`)
+          out.push(`- **${lineRef}** [${authorLabel(root)}]: ${renderContentForExport(root)}`)
           const thread = threads.get(root.id)
           if (thread) {
             for (const reply of thread.replies) {
-              out.push(`  - [${authorLabel(reply)}]: ${reply.content}`)
+              out.push(`  - [${authorLabel(reply)}]: ${renderContentForExport(reply)}`)
             }
           }
         }

@@ -39,7 +39,7 @@ func (h *Handler) ServeDocsPage(w http.ResponseWriter, r *http.Request) {
 `, base, dirStr, base)
 
 	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
-	fmt.Fprint(w, header)
+	fmt.Fprint(w, header) // #nosec G705 -- served as text/markdown, not HTML; no script execution context
 
 	// Strip the leading "# VibeDiff API Reference\n\n" from the embedded
 	// file since the dynamic header already includes it.

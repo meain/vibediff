@@ -53,7 +53,7 @@ func (s *Store) SaveComments(projectDir string) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(file, data, 0o644)
+	return os.WriteFile(file, data, 0o600)
 }
 
 // LoadComments merges comments from disk for the given project directory into
