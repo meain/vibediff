@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"time"
 )
 
 func vibediffConfigDir() (string, error) {
@@ -96,9 +95,6 @@ func (s *Store) LoadComments(projectDir string) error {
 	defer s.mu.Unlock()
 	if s.loadedDirs == nil {
 		s.loadedDirs = make(map[string]bool)
-	}
-	if s.tombstones == nil {
-		s.tombstones = make(map[string]time.Time)
 	}
 	// Merge: stamp Directory and add to in-memory store.
 	for _, c := range comments {

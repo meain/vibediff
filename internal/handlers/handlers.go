@@ -315,17 +315,6 @@ func (h *Handler) GetResolvedComments(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, h.reviewStore.GetCommentsByStatus(review.StatusResolved))
 }
 
-// GetLatestComment returns the single most recently created open comment,
-// or 404 if none exist. Intended for hook scripts polling for new arrivals.
-func (h *Handler) GetLatestComment(w http.ResponseWriter, r *http.Request) {
-	c := h.reviewStore.LatestOpenComment()
-	if c == nil {
-		http.Error(w, "no open comments", http.StatusNotFound)
-		return
-	}
-	h.writeJSON(w, c)
-}
-
 // UpdateComment replaces the content of an existing comment.
 func (h *Handler) UpdateComment(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)

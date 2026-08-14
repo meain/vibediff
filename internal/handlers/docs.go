@@ -35,9 +35,8 @@ func (h *Handler) ServeDocsPage(w http.ResponseWriter, r *http.Request) {
 | Base URL     | %s             |
 | Projects     | %s             |
 | UI           | %s/            |
-| MCP endpoint | %s/mcp         |
 
-`, base, dirStr, base, base)
+`, base, dirStr, base)
 
 	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
 	fmt.Fprint(w, header)

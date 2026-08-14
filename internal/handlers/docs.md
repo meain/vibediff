@@ -114,11 +114,6 @@ Return all open (unresolved) comments across all registered directories.
 
 Return all resolved comments across all registered directories.
 
-### `GET /api/review/comments/latest`
-
-Return the single most-recently created open comment across all directories,
-or `404` if none. Useful for polling scripts.
-
 ### `POST /api/review/comment`
 
 Create a new comment.
@@ -247,20 +242,6 @@ Example: `http://localhost:8888/?dir=/path/to/repo&rev=abc123&file=main.go`
 
 ## Getting updates
 
-### HTTP polling (simple)
-
-All REST endpoints can be polled at any interval.
-`GET /api/review/comments/latest` is the lightest option — it returns only the
-newest open comment so you can trigger on new activity without fetching everything.
-
-```sh
-# wait for a new comment, then act
-while true; do
-  curl -sf http://localhost:8888/api/review/comments/latest && break
-  sleep 2
-done
-```
-
 ### WebSocket (push)
 
 Connect to `/api/ws` (upgrade to `ws://`) for server-push notifications.
@@ -275,39 +256,6 @@ for directories they are not currently viewing:
 
 `directory` is the repository where the change occurred.
 Reconnect with exponential back-off if the connection drops.
-
----
-
-## MCP (AI agent integration)
-
-VibeDiff includes a [Model Context Protocol](https://modelcontextprotocol.io) server
-mounted at `/mcp`. Point any MCP client at `http://localhost:8888/mcp`.
-
-> **Note:** Only one MCP session is accepted at a time.
-> A second `initialize` returns `409 Conflict`.
-
-### Tools
-
-| Tool | Description |
-|------|-------------|
-| `list_open_comments`  | Return all open comments across all registered directories, each with its pinned diff hunk. |
-| `wait_for_comment`    | Long-poll until a new user comment arrives. Pass `next_since_id` from the previous response as cursor. Returns immediately if a backlog exists; empty array on timeout — call again to keep listening. |
-| `reply_to_comment`    | Post an agent reply as a child of an existing comment thread. Accepts an optional `author_name` (e.g. `"explainer"`) shown in the UI as `agent:<author_name>`. |
-| `get_full_hunk`       | Fetch the complete diff hunk for one comment ID. |
-| `delete_comment`      | Delete a comment thread (cascades to replies). Use when the request has been addressed in code. |
-
-### Claude Code config
-
-```json
-{
-  "mcpServers": {
-    "vibediff": {
-      "type": "http",
-      "url": "http://localhost:8888/mcp"
-    }
-  }
-}
-```
 
 ---
 
