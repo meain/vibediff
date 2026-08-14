@@ -124,8 +124,6 @@ interface FileDiffProps {
   onDeleteComment: (id: string) => Promise<void>
   onUpdateComment?: (id: string, content: string) => Promise<void>
   onAddReply?: (parentComment: Comment, content: string) => Promise<void>
-  onResolveComment?: (id: string) => Promise<void>
-  onReopenComment?: (id: string) => Promise<void>
   hideViewFullFile?: boolean
   onClose?: () => void
   wrapLines?: boolean
@@ -135,7 +133,6 @@ interface FileDiffProps {
   isReviewed?: boolean
   onToggleReviewed?: () => void
   commentCount?: number
-  pendingCommentCount?: number
   activeComment?: { line: number; lineEnd: number } | null
   onSubmitComment?: (content: string) => void
   onCancelComment?: () => void
@@ -153,8 +150,6 @@ function FileDiff({
   onDeleteComment,
   onUpdateComment,
   onAddReply,
-  onResolveComment,
-  onReopenComment,
   hideViewFullFile = false,
   onClose,
   wrapLines = false,
@@ -165,7 +160,6 @@ function FileDiff({
   isReviewed = false,
   onToggleReviewed,
   commentCount = 0,
-  pendingCommentCount = 0,
   activeComment = null,
   onSubmitComment,
   onCancelComment
@@ -456,8 +450,6 @@ function FileDiff({
                 onDelete={(id) => { void onDeleteComment(id); }}
                 onUpdate={onUpdateComment}
                 onAddReply={onAddReply}
-                onResolve={onResolveComment ? (id) => { void onResolveComment(id); } : undefined}
-                onReopen={onReopenComment ? (id) => { void onReopenComment(id); } : undefined}
               />
             </td>
           </tr>
@@ -473,7 +465,7 @@ function FileDiff({
         )}
       </React.Fragment>
     )
-  }, [file.path, getCommentsForLine, handleDragEnter, handleDragStart, selectedLines, commentRangeLines, wrapLines, onDeleteComment, onUpdateComment, onAddReply, onResolveComment, onReopenComment, activeComment, onSubmitComment, onCancelComment, lineNumberOf])
+  }, [file.path, getCommentsForLine, handleDragEnter, handleDragStart, selectedLines, commentRangeLines, wrapLines, onDeleteComment, onUpdateComment, onAddReply, activeComment, onSubmitComment, onCancelComment, lineNumberOf])
 
   const renderExpandedLinesUnified = useCallback((lines: DiffLineType[], keyPrefix: string): React.ReactElement[] => {
     return lines.map((line, i) => renderUnifiedLine(line, `${keyPrefix}-${String(i)}`))
@@ -518,7 +510,7 @@ function FileDiff({
 
     const renderLines = (lines: DiffLineType[], keyPrefix: string): React.ReactNode =>
       isSplit
-        ? renderSplitView(lines, splitLineRenderer, onDeleteComment, inlineComment, onResolveComment, onReopenComment, onUpdateComment, onAddReply, `${keyPrefix}-`)
+        ? renderSplitView(lines, splitLineRenderer, onDeleteComment, inlineComment, onUpdateComment, onAddReply, `${keyPrefix}-`)
         : renderExpandedLinesUnified(lines, keyPrefix)
 
     return (
@@ -537,7 +529,7 @@ function FileDiff({
         {gapData.bottomLines.length > 0 && renderLines(gapData.bottomLines, `gap-${gap.key}-bottom`)}
       </React.Fragment>
     )
-  }, [getGapRenderData, renderExpandedLinesUnified, splitLineRenderer, onDeleteComment, onUpdateComment, onAddReply, onResolveComment, onReopenComment, activeComment, onSubmitComment, onCancelComment, isLoadingFull, handleExpand, handleExpandAll, handleCollapse])
+  }, [getGapRenderData, renderExpandedLinesUnified, splitLineRenderer, onDeleteComment, onUpdateComment, onAddReply, activeComment, onSubmitComment, onCancelComment, isLoadingFull, handleExpand, handleExpandAll, handleCollapse])
 
   return (
     <div id={`file-${file.path.replace(/\//g, '-')}`} className="mx-3 mb-3 first:mt-3">
@@ -589,7 +581,7 @@ function FileDiff({
               <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.076-4.076a1.526 1.526 0 011.037-.443 48.282 48.282 0 005.68-.494c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
               </svg>
-              {pendingCommentCount > 0 ? `${pendingCommentCount} / ${commentCount}` : commentCount}
+              {commentCount}
             </span>
           )}
 
@@ -687,7 +679,7 @@ function FileDiff({
                     </tr>
 
                     {/* Split View Lines */}
-                    {renderSplitView(hunk.lines, splitLineRenderer, onDeleteComment, activeComment && onSubmitComment && onCancelComment ? { activeComment, onSubmitComment, onCancelComment } : null, onResolveComment, onReopenComment, onUpdateComment, onAddReply, `hunk-${String(hunkIndex)}-`)}
+                    {renderSplitView(hunk.lines, splitLineRenderer, onDeleteComment, activeComment && onSubmitComment && onCancelComment ? { activeComment, onSubmitComment, onCancelComment } : null, onUpdateComment, onAddReply, `hunk-${String(hunkIndex)}-`)}
                   </React.Fragment>
                   )
                 })}
@@ -717,14 +709,10 @@ function renderSplitView(
   renderLine: (line: DiffLineType, index: number) => SplitViewLineResult,
   onDeleteComment: (id: string) => Promise<void>,
   inlineComment: InlineCommentInfo | null,
-  onResolveComment?: (id: string) => Promise<void>,
-  onReopenComment?: (id: string) => Promise<void>,
   onUpdateComment?: (id: string, content: string) => Promise<void>,
   onAddReply?: (parentComment: Comment, content: string) => Promise<void>,
   keyPrefix = '',
 ): React.ReactNode[] {
-  const resolveCb = onResolveComment ? (id: string) => { void onResolveComment(id); } : undefined
-  const reopenCb = onReopenComment ? (id: string) => { void onReopenComment(id); } : undefined
   const rows: React.ReactNode[] = []
   let i = 0
 
@@ -763,8 +751,6 @@ function renderSplitView(
                 onDelete={(id) => { void onDeleteComment(id); }}
                 onUpdate={onUpdateComment}
                 onAddReply={onAddReply}
-                onResolve={resolveCb}
-                onReopen={reopenCb}
               />
             </td>
           </tr>
@@ -793,8 +779,6 @@ function renderSplitView(
                     onDelete={(id) => { void onDeleteComment(id); }}
                     onUpdate={onUpdateComment}
                     onAddReply={onAddReply}
-                    onResolve={resolveCb}
-                    onReopen={reopenCb}
                   />
                 )}
               </td>
@@ -805,8 +789,6 @@ function renderSplitView(
                     onDelete={(id) => { void onDeleteComment(id); }}
                     onUpdate={onUpdateComment}
                     onAddReply={onAddReply}
-                    onResolve={resolveCb}
-                    onReopen={reopenCb}
                   />
                 )}
               </td>
@@ -833,8 +815,6 @@ function renderSplitView(
                   onDelete={(id) => { void onDeleteComment(id); }}
                   onUpdate={onUpdateComment}
                   onAddReply={onAddReply}
-                  onResolve={resolveCb}
-                  onReopen={reopenCb}
                 />
               </td>
               <td colSpan={2} className="bg-surface-raised"></td>
@@ -862,8 +842,6 @@ function renderSplitView(
                 onDelete={(id) => { void onDeleteComment(id); }}
                 onUpdate={onUpdateComment}
                 onAddReply={onAddReply}
-                onResolve={resolveCb}
-                onReopen={reopenCb}
               />
             </td>
           </tr>

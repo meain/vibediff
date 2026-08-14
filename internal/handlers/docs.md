@@ -106,14 +106,6 @@ Return comments for a directory, optionally filtered.
 | `revision`  | Filter by revision ID. Use `working-copy` for unstaged changes. Omit to return all. |
 | `file`      | Filter by file path. |
 
-### `GET /api/review/comments/open`
-
-Return all open (unresolved) comments across all registered directories.
-
-### `GET /api/review/comments/resolved`
-
-Return all resolved comments across all registered directories.
-
 ### `POST /api/review/comment`
 
 Create a new comment.
@@ -148,14 +140,6 @@ Update the text of an existing comment.
 ```json
 { "content": "Updated text" }
 ```
-
-### `POST /api/review/comment/{id}/resolve`
-
-Mark a comment thread as resolved.
-
-### `POST /api/review/comment/{id}/reopen`
-
-Reopen a resolved comment.
 
 ### `DELETE /api/review/comment/{id}`
 
@@ -272,7 +256,6 @@ Reconnect with exponential back-off if the connection drops.
   "author":    "user",
   "authorName": "",
   "parentId":  "",
-  "status":    "open",
   "revision":  "",
   "commit":    "abc1234",
   "createdAt": "2026-06-16T15:04:05Z"
@@ -281,7 +264,6 @@ Reconnect with exponential back-off if the connection drops.
 
 `author` is `"user"` or `"agent"`.
 `authorName` is an optional free-form tag (e.g. `"explainer"`) naming the kind of agent that posted the comment; the UI renders it as `agent:<authorName>`.
-`status` is `"open"` or `"resolved"`.
 `parentId` is empty for root comments; set to a root comment's `id` for replies.
 The API always returns a flat array — clients group by `parentId`.
 `revision` is empty string for working-copy comments.

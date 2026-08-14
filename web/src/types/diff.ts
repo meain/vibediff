@@ -54,7 +54,6 @@ export interface Revision {
 }
 
 export type CommentAuthor = 'user' | 'agent'
-export type CommentStatus = 'open' | 'resolved'
 
 export interface Comment {
   id: string
@@ -66,7 +65,6 @@ export interface Comment {
   author: CommentAuthor
   authorName?: string
   parentId?: string
-  status: CommentStatus
   revision?: string
   commit?: string
   createdAt: string

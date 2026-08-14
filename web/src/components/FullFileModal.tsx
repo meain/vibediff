@@ -14,15 +14,13 @@ interface FullFileModalProps {
   onDeleteComment: (id: string) => Promise<void>
   onUpdateComment?: (id: string, content: string) => Promise<void>
   onAddReply?: (parentComment: import('../types/diff').Comment, content: string) => Promise<void>
-  onResolveComment?: (id: string) => Promise<void>
-  onReopenComment?: (id: string) => Promise<void>
   onAddComment: (file: string, line: number, content: string, lineEnd: number) => void
   wrapLines?: boolean
   diffType?: DiffType
   selectedRevision?: string | null
 }
 
-export default function FullFileModal({ isOpen, filePath, directory, onClose, viewMode, getCommentsForLine, getCommentRangeLines, onDeleteComment, onUpdateComment, onAddReply, onResolveComment, onReopenComment, onAddComment, wrapLines = false, diffType = 'all', selectedRevision }: FullFileModalProps): React.ReactElement | null {
+export default function FullFileModal({ isOpen, filePath, directory, onClose, viewMode, getCommentsForLine, getCommentRangeLines, onDeleteComment, onUpdateComment, onAddReply, onAddComment, wrapLines = false, diffType = 'all', selectedRevision }: FullFileModalProps): React.ReactElement | null {
   const [fileData, setFileData] = useState<FileDiff | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -130,8 +128,6 @@ export default function FullFileModal({ isOpen, filePath, directory, onClose, vi
                 onDeleteComment={onDeleteComment}
                 onUpdateComment={onUpdateComment}
                 onAddReply={onAddReply}
-                onResolveComment={onResolveComment}
-                onReopenComment={onReopenComment}
                 hideViewFullFile={true}
                 onClose={onClose}
                 wrapLines={wrapLines}

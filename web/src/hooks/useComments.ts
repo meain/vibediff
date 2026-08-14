@@ -20,12 +20,9 @@ interface UseCommentsReturn {
   addComment: (file: string, line: number, content: string, lineEnd: number, parentId?: string) => Promise<Comment>
   updateComment: (id: string, content: string) => Promise<void>
   deleteComment: (id: string) => Promise<void>
-  resolveComment: (id: string) => Promise<void>
-  reopenComment: (id: string) => Promise<void>
   getCommentsForLine: (file: string, line: number) => Comment[]
   getCommentRangeLines: (file: string, lineOrder: number[]) => Set<number>
   formatCommentsForExport: (revisions?: Revision[]) => string
-  formatPendingCommentsForExport: (revisions?: Revision[]) => string
   clearComments: () => Promise<void>
   fetchError: string | null
   clearFetchError: () => void
@@ -117,26 +114,6 @@ export function useComments(currentDirectory?: string, selectedRevision?: string
     setComments(prev => prev.map(c => c.id === id ? { ...c, content } : c))
   }, [])
 
-  const setLocalStatus = (id: string, status: Comment['status']): void => {
-    setComments(prev => prev.map(c => c.id === id ? { ...c, status } : c))
-  }
-
-  const resolveComment = useCallback(async (id: string) => {
-    const response = await fetch(`/api/review/comment/${id}/resolve`, { method: 'POST' })
-    if (!response.ok) {
-      throw new Error('Failed to resolve comment')
-    }
-    setLocalStatus(id, 'resolved')
-  }, [])
-
-  const reopenComment = useCallback(async (id: string) => {
-    const response = await fetch(`/api/review/comment/${id}/reopen`, { method: 'POST' })
-    if (!response.ok) {
-      throw new Error('Failed to reopen comment')
-    }
-    setLocalStatus(id, 'open')
-  }, [])
-
   const deleteComment = useCallback(async (id: string) => {
     try {
       const response = await fetch(`/api/review/comment/${id}`, {
@@ -226,8 +203,7 @@ export function useComments(currentDirectory?: string, selectedRevision?: string
       return out
     }
 
-    const openRoots = comments.filter(c => !c.parentId && c.status === 'open')
-    const resolvedRoots = comments.filter(c => !c.parentId && c.status === 'resolved')
+    const roots = comments.filter(c => !c.parentId)
 
     // Build a revision description lookup from the provided list.
     // Each comment carries a revision ID (jj change ID) and/or a commit SHA.
@@ -257,61 +233,8 @@ export function useComments(currentDirectory?: string, selectedRevision?: string
     const header = revisionHeader()
     if (header) lines.push(header, '')
 
-    if (openRoots.length > 0) {
-      lines.push('## Open', '', ...renderSection(openRoots))
-    }
-    if (resolvedRoots.length > 0) {
-      lines.push('## Resolved', '', ...renderSection(resolvedRoots))
-    }
+    lines.push(...renderSection(roots))
 
-    return lines.join('\n')
-  }, [comments])
-
-  const formatPendingCommentsForExport = useCallback((revisions?: Revision[]) => {
-    const pendingRoots = comments.filter(c => !c.parentId && c.status === 'open')
-    if (pendingRoots.length === 0) return ''
-
-    const threads = new Map(groupIntoThreads(comments).map(t => [t.root.id, t]))
-    const authorLabel = (c: Comment): string => {
-      if (c.author !== 'agent') return 'User'
-      return c.authorName ? `agent:${c.authorName}` : 'Agent'
-    }
-    const revMap = new Map<string, Revision>()
-    for (const r of revisions ?? []) revMap.set(r.id, r)
-
-    const revisionHeader = (): string => {
-      const ids = [...new Set(pendingRoots.filter(c => !!c.revision).map(c => c.revision as string))]
-      if (ids.length === 0) return ''
-      return ids.map(id => {
-        const r = revMap.get(id)
-        if (r) return `> **${r.shortId}** — ${r.description.split('\n', 1)[0] || '(no description)'}  \n> ${r.author} · ${new Date(r.timestamp).toLocaleDateString()}`
-        const commit = comments.find(c => c.revision === id)?.commit
-        return commit ? `> **${commit.slice(0, 7)}**` : `> ${id.slice(0, 8)}`
-      }).join('\n')
-    }
-
-    const byFile = new Map<string, Comment[]>()
-    for (const c of pendingRoots) {
-      const list = byFile.get(c.file) ?? []
-      list.push(c)
-      byFile.set(c.file, list)
-    }
-
-    const lines: string[] = ['# Pending Review Comments', '']
-    const header = revisionHeader()
-    if (header) lines.push(header, '')
-    for (const [file, roots] of byFile) {
-      lines.push(`### ${file}`, '')
-      for (const root of roots) {
-        const lineRef = formatLineRef(root.line, root.lineEnd)
-        lines.push(`- **${lineRef}** [${authorLabel(root)}]: ${root.content}`)
-        const thread = threads.get(root.id)
-        if (thread) {
-          for (const reply of thread.replies) lines.push(`  - [${authorLabel(reply)}]: ${reply.content}`)
-        }
-      }
-      lines.push('')
-    }
     return lines.join('\n')
   }, [comments])
 
@@ -333,12 +256,9 @@ export function useComments(currentDirectory?: string, selectedRevision?: string
     addComment,
     updateComment,
     deleteComment,
-    resolveComment,
-    reopenComment,
     getCommentsForLine,
     getCommentRangeLines,
     formatCommentsForExport,
-    formatPendingCommentsForExport,
     clearComments,
     fetchError,
     clearFetchError,
