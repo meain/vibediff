@@ -471,7 +471,7 @@ func (h *Handler) GetFileContent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	if _, err := w.Write([]byte(content)); err != nil {
+	if _, err := w.Write([]byte(content)); err != nil { // #nosec G705 -- served as text/plain, not HTML; no script execution context
 		log.Printf("Failed to write file content: %v", err)
 	}
 }

@@ -200,5 +200,5 @@ func (r *Registry) save() error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(r.file, data, 0o644)
+	return os.WriteFile(r.file, data, 0o600)
 }

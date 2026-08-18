@@ -137,7 +137,7 @@ interface FileDiffProps {
   commentCount?: number
   pendingCommentCount?: number
   activeComment?: { line: number; lineEnd: number } | null
-  onSubmitComment?: (content: string) => void
+  onSubmitComment?: (content: string, originalContent?: string) => void
   onCancelComment?: () => void
 }
 
@@ -356,6 +356,39 @@ function FileDiff({
       : (line.newLineNumber ?? line.newNumber ?? 0)
   }, [])
 
+  // Resolves the content of a given (add/context-side) line number, checking the
+  // expanded full-diff map first, then falling back to the hunks already present
+  // in `file.hunks` (the common case where the diff hasn't been expanded yet).
+  const getLineContent = useCallback((lineNumber: number): string | undefined => {
+    const fromFull = fullLineMap?.get(lineNumber)?.content
+    if (fromFull !== undefined) return fromFull
+    for (const hunk of file.hunks) {
+      for (const line of hunk.lines) {
+        if (lineNumberOf(line) === lineNumber) return line.content
+      }
+    }
+    return undefined
+  }, [fullLineMap, file.hunks, lineNumberOf])
+
+  // Resolves original content for the active comment's line/lineEnd range, for
+  // the "suggest" button and OriginalContent capture. Only eligible when both
+  // bounds are non-negative (add/context side, never pure-deletion anchors) and
+  // every line in the range resolves to real content.
+  const activeCommentOriginalLines = useMemo((): string[] | null => {
+    if (!activeComment) return null
+    const { line, lineEnd } = activeComment
+    if (line < 0 || lineEnd < 0) return null
+    const lo = Math.min(line, lineEnd)
+    const hi = Math.max(line, lineEnd)
+    const lines: string[] = []
+    for (let n = lo; n <= hi; n++) {
+      const content = getLineContent(n)
+      if (content === undefined) return null
+      lines.push(content)
+    }
+    return lines
+  }, [activeComment, getLineContent])
+
   const getGapRenderData = useCallback((gap: GapInfo): GapRenderData => {
     const expansion = gapExpansions[gap.key] ?? { down: 0, up: 0 }
     const isExpanded = expansion.down > 0 || expansion.up > 0
@@ -469,11 +502,12 @@ function FileDiff({
             onSubmit={onSubmitComment}
             onCancel={onCancelComment}
             colSpan={3}
+            originalLines={activeCommentOriginalLines}
           />
         )}
       </React.Fragment>
     )
-  }, [file.path, getCommentsForLine, handleDragEnter, handleDragStart, selectedLines, commentRangeLines, wrapLines, onDeleteComment, onUpdateComment, onAddReply, onResolveComment, onReopenComment, activeComment, onSubmitComment, onCancelComment, lineNumberOf])
+  }, [file.path, getCommentsForLine, handleDragEnter, handleDragStart, selectedLines, commentRangeLines, wrapLines, onDeleteComment, onUpdateComment, onAddReply, onResolveComment, onReopenComment, activeComment, onSubmitComment, onCancelComment, lineNumberOf, activeCommentOriginalLines])
 
   const renderExpandedLinesUnified = useCallback((lines: DiffLineType[], keyPrefix: string): React.ReactElement[] => {
     return lines.map((line, i) => renderUnifiedLine(line, `${keyPrefix}-${String(i)}`))
@@ -513,7 +547,7 @@ function FileDiff({
   const renderGap = useCallback((gap: GapInfo, colSpan: number, isSplit: boolean): React.ReactElement => {
     const gapData = getGapRenderData(gap)
     const inlineComment = activeComment && onSubmitComment && onCancelComment
-      ? { activeComment, onSubmitComment, onCancelComment }
+      ? { activeComment, onSubmitComment, onCancelComment, originalLines: activeCommentOriginalLines }
       : null
 
     const renderLines = (lines: DiffLineType[], keyPrefix: string): React.ReactNode =>
@@ -537,7 +571,7 @@ function FileDiff({
         {gapData.bottomLines.length > 0 && renderLines(gapData.bottomLines, `gap-${gap.key}-bottom`)}
       </React.Fragment>
     )
-  }, [getGapRenderData, renderExpandedLinesUnified, splitLineRenderer, onDeleteComment, onUpdateComment, onAddReply, onResolveComment, onReopenComment, activeComment, onSubmitComment, onCancelComment, isLoadingFull, handleExpand, handleExpandAll, handleCollapse])
+  }, [getGapRenderData, renderExpandedLinesUnified, splitLineRenderer, onDeleteComment, onUpdateComment, onAddReply, onResolveComment, onReopenComment, activeComment, onSubmitComment, onCancelComment, isLoadingFull, handleExpand, handleExpandAll, handleCollapse, activeCommentOriginalLines])
 
   return (
     <div id={`file-${file.path.replace(/\//g, '-')}`} className="mx-3 mb-3 first:mt-3">
@@ -687,7 +721,7 @@ function FileDiff({
                     </tr>
 
                     {/* Split View Lines */}
-                    {renderSplitView(hunk.lines, splitLineRenderer, onDeleteComment, activeComment && onSubmitComment && onCancelComment ? { activeComment, onSubmitComment, onCancelComment } : null, onResolveComment, onReopenComment, onUpdateComment, onAddReply, `hunk-${String(hunkIndex)}-`)}
+                    {renderSplitView(hunk.lines, splitLineRenderer, onDeleteComment, activeComment && onSubmitComment && onCancelComment ? { activeComment, onSubmitComment, onCancelComment, originalLines: activeCommentOriginalLines } : null, onResolveComment, onReopenComment, onUpdateComment, onAddReply, `hunk-${String(hunkIndex)}-`)}
                   </React.Fragment>
                   )
                 })}
@@ -708,8 +742,9 @@ export default React.memo(FileDiff)
 
 interface InlineCommentInfo {
   activeComment: { line: number; lineEnd: number }
-  onSubmitComment: (content: string) => void
+  onSubmitComment: (content: string, originalContent?: string) => void
   onCancelComment: () => void
+  originalLines: string[] | null
 }
 
 function renderSplitView(
@@ -737,6 +772,7 @@ function renderSplitView(
           lineEnd={inlineComment.activeComment.lineEnd}
           onSubmit={inlineComment.onSubmitComment}
           onCancel={inlineComment.onCancelComment}
+          originalLines={inlineComment.originalLines}
           colSpan={4}
         />
       )

@@ -138,10 +138,10 @@ func TestSetAlias(t *testing.T) {
 // (i.e. ListEntries reports Alias == "").
 func TestClearAlias(t *testing.T) {
 	testCases := []struct {
-		name          string
-		initialAlias  string
-		clearAlias    string
-		wantClearOK   bool
+		name           string
+		initialAlias   string
+		clearAlias     string
+		wantClearOK    bool
 		wantFinalAlias string
 	}{
 		{
@@ -235,11 +235,11 @@ func TestRemoveUnaffectedByAlias(t *testing.T) {
 // don't match the currently registered set.
 func TestReorderPreservesAliases(t *testing.T) {
 	testCases := []struct {
-		name         string
-		reorderTo    []string
-		wantOK       bool
-		wantOrder    []string
-		wantAliasAB  string // expected alias of /a/b after the call
+		name        string
+		reorderTo   []string
+		wantOK      bool
+		wantOrder   []string
+		wantAliasAB string // expected alias of /a/b after the call
 	}{
 		{
 			name:        "reordering the same set in different order preserves alias",

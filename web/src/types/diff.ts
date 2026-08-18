@@ -63,6 +63,7 @@ export interface Comment {
   lineEnd: number
   side?: string
   content: string
+  originalContent?: string
   author: CommentAuthor
   authorName?: string
   parentId?: string

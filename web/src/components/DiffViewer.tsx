@@ -379,9 +379,9 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
     await addComment(parent.file, parent.line, content, parent.lineEnd, parent.id)
   }, [addComment])
 
-  const handleSingleFileSubmitComment = useCallback((content: string) => {
+  const handleSingleFileSubmitComment = useCallback((content: string, originalContent?: string) => {
     if (commentDialog) {
-      void addComment(commentDialog.file, commentDialog.line, content, commentDialog.lineEnd).then(() => {
+      void addComment(commentDialog.file, commentDialog.line, content, commentDialog.lineEnd, undefined, originalContent).then(() => {
         setCommentDialog(null)
       }).catch((err: unknown) => {
         console.error('Failed to add comment:', err)
@@ -1034,9 +1034,9 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
                 commentCount={showComments ? comments.filter(c => c.file === file.path && !c.parentId).length : 0}
                 pendingCommentCount={showComments ? comments.filter(c => c.file === file.path && !c.parentId && c.status === 'open').length : 0}
                 activeComment={commentDialog?.file === file.path ? { line: commentDialog.line, lineEnd: commentDialog.lineEnd } : null}
-                onSubmitComment={(content) => {
+                onSubmitComment={(content, originalContent) => {
                   if (commentDialog) {
-                    void addComment(commentDialog.file, commentDialog.line, content, commentDialog.lineEnd).then(() => {
+                    void addComment(commentDialog.file, commentDialog.line, content, commentDialog.lineEnd, undefined, originalContent).then(() => {
                       setCommentDialog(null)
                     }).catch((err: unknown) => {
                       console.error('Failed to add comment:', err)
