@@ -152,6 +152,35 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
     }
   }, [revisions, revisionsLoading, selectedRevision])
 
+  // jj's working copy is a real commit, so when a new commit lands on top of it
+  // (e.g. `jj new`, `jj commit`), the id backing "working copy" changes. We never
+  // want to silently jump the diff view to that new commit: the revision graph
+  // should reflect it immediately, but the displayed diff stays put until the user
+  // explicitly clicks over. This ref tracks the working-copy id we're anchored to.
+  const followedWorkingCopyIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (backend !== 'jj') return
+    const wc = revisions.find(r => r.isWorkingCopy)
+    if (!wc) return
+    if (selectedRevision === null) {
+      if (followedWorkingCopyIdRef.current !== null && followedWorkingCopyIdRef.current !== wc.id) {
+        // A new commit landed while we were following the working copy — pin to
+        // the commit we were actually looking at instead of following it.
+        setSelectedRevision(followedWorkingCopyIdRef.current)
+      } else {
+        followedWorkingCopyIdRef.current = wc.id
+      }
+    } else {
+      followedWorkingCopyIdRef.current = wc.id
+    }
+  }, [revisions, backend, selectedRevision])
+
+  // Reset the working-copy anchor when switching directories/projects, so a stale
+  // id from the previous directory can't trigger a false pin.
+  useEffect(() => {
+    followedWorkingCopyIdRef.current = null
+  }, [currentDirectory])
+
   // Load preferences from localStorage
   useEffect(() => {
     const savedCollapsed = localStorage.getItem('collapsedFiles')
