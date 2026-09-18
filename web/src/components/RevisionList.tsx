@@ -151,6 +151,11 @@ function GraphCell({ row, totalCols, rowHeight }: { row: GraphRow; totalCols: nu
 
 const ROW_HEIGHT = 44
 
+/** The checked-out revision: jj's @ or git's HEAD commit. */
+function isCurrentRevision(rev: Revision): boolean {
+  return rev.isHead === true || rev.isWorkingCopy === true
+}
+
 function RevisionRow({
   rev,
   graphRow,
@@ -160,6 +165,7 @@ function RevisionRow({
   isReviewed,
   onToggleReviewed,
   commentCount,
+  rowRef,
 }: {
   rev: Revision
   graphRow: GraphRow
@@ -169,6 +175,7 @@ function RevisionRow({
   isReviewed: boolean
   onToggleReviewed?: () => void
   commentCount: number
+  rowRef?: React.Ref<HTMLDivElement>
 }): React.ReactElement {
   const contentRef = useRef<HTMLDivElement>(null)
   const [rowHeight, setRowHeight] = useState(ROW_HEIGHT)
@@ -185,6 +192,7 @@ function RevisionRow({
 
   return (
     <div
+      ref={rowRef}
       role="button"
       tabIndex={0}
       onClick={onSelect}
@@ -217,9 +225,9 @@ function RevisionRow({
           <span className="truncate">
             {rev.description.split('\n', 1)[0] || '(no description)'}
           </span>
-          {rev.isWorkingCopy && (
+          {isCurrentRevision(rev) && (
             <span className="shrink-0 text-[10px] px-1 py-0.5 rounded bg-accent-muted text-accent-emphasis">
-              @
+              {rev.isWorkingCopy ? '@' : 'HEAD'}
             </span>
           )}
         </div>
@@ -263,6 +271,7 @@ export default function RevisionList({
   commentCounts,
 }: RevisionListProps): React.ReactElement {
   const [filter, setFilter] = useState('')
+  const currentRowRef = useRef<HTMLDivElement>(null)
 
   const query = filter.trim().toLowerCase()
   const filteredRevisions = query
@@ -284,16 +293,33 @@ export default function RevisionList({
     )
   }
 
+  const hasCurrent = filteredRevisions.some(isCurrentRevision)
+
   return (
     <div className="flex flex-col h-full">
-      {/* Filter input */}
-      <input
-        type="text"
-        value={filter}
-        onChange={(e) => { setFilter(e.target.value); }}
-        placeholder="Filter by ID or message…"
-        className="w-full flex-none px-2 py-1.5 text-xs bg-surface-inset text-fg placeholder:text-fg-subtle border-b border-edge focus:outline-none focus:border-accent"
-      />
+      {/* Filter input + jump to the checked-out revision, which may sit below
+          commits that were built on top of it */}
+      <div className="flex-none flex items-stretch border-b border-edge">
+        <input
+          type="text"
+          value={filter}
+          onChange={(e) => { setFilter(e.target.value); }}
+          placeholder="Filter by ID or message…"
+          className="flex-1 min-w-0 px-2 py-1.5 text-xs bg-surface-inset text-fg placeholder:text-fg-subtle focus:outline-none focus:border-accent"
+        />
+        {hasCurrent && (
+          <button
+            type="button"
+            onClick={() => {
+              currentRowRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+            }}
+            title={`Scroll to current revision (${backend === 'jj' ? '@' : 'HEAD'})`}
+            className="shrink-0 px-2 text-[10px] font-mono bg-surface-inset text-fg-muted hover:text-accent-emphasis hover:bg-surface-raised focus:outline-none focus:text-accent-emphasis"
+          >
+            {backend === 'jj' ? '@' : 'HEAD'}
+          </button>
+        )}
+      </div>
 
       <div className="flex-1 overflow-y-auto">
       {/* Working copy option — only for git, since in jj the first revision IS the working copy */}
@@ -353,6 +379,7 @@ export default function RevisionList({
             isReviewed={reviewedRevisions?.has(countKey) ?? false}
             onToggleReviewed={onToggleRevisionReviewed && (() => { onToggleRevisionReviewed(countKey) })}
             commentCount={commentCounts?.get(countKey) ?? 0}
+            rowRef={isCurrentRevision(rev) ? currentRowRef : undefined}
           />
         )
       })}

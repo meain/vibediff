@@ -485,7 +485,8 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
   }
 
   // Index of the currently viewed revision within `revisions` (ordered newest-first).
-  // For jj, the working copy is revisions[0], so selectedRevision === null maps to that index.
+  // For jj, selectedRevision === null maps to the working-copy entry, which is not
+  // always revisions[0] — commits built on top of @ are listed above it.
   // For git, the working copy has no entry in `revisions`, so it maps to -1 (before the list).
   let currentRevIndex: number
   if (selectedRevision !== null) {

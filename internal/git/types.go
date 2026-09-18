@@ -74,13 +74,16 @@ type Revision struct {
 	// every amend/snapshot while the change id (ID) stays stable. The frontend
 	// uses it to invalidate "commit reviewed" marks when a commit's contents
 	// change.
-	CommitID      string   `json:"commitId,omitempty"`
-	Description   string   `json:"description"`
-	Author        string   `json:"author"`
-	Timestamp     string   `json:"timestamp"`
-	IsWorkingCopy bool     `json:"isWorkingCopy,omitempty"`
-	Bookmarks     []string `json:"bookmarks,omitempty"`
-	Parents       []string `json:"parents,omitempty"`
-	Additions     int      `json:"additions,omitempty"`
-	Deletions     int      `json:"deletions,omitempty"`
+	CommitID      string `json:"commitId,omitempty"`
+	Description   string `json:"description"`
+	Author        string `json:"author"`
+	Timestamp     string `json:"timestamp"`
+	IsWorkingCopy bool   `json:"isWorkingCopy,omitempty"`
+	// IsHead marks the currently checked-out revision (git HEAD / jj @). The
+	// list can contain commits above it, so it is not always the first entry.
+	IsHead    bool     `json:"isHead,omitempty"`
+	Bookmarks []string `json:"bookmarks,omitempty"`
+	Parents   []string `json:"parents,omitempty"`
+	Additions int      `json:"additions,omitempty"`
+	Deletions int      `json:"deletions,omitempty"`
 }

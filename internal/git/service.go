@@ -586,12 +586,51 @@ func parseDiffStat(s string) (additions, deletions int) {
 }
 
 func (s *Service) getGitRevisions(dir string, limit int) ([]Revision, error) {
+	// Commits that descend from HEAD (i.e. sit "above" it on some ref) are
+	// listed first so the graph reads newest-at-top. They only exist when HEAD
+	// is behind a branch or detached; the query is a no-op otherwise.
+	descendants, err := s.gitLogRevisions(dir, limit, "--ancestry-path", "^HEAD", "--all")
+	if err != nil {
+		// A repo without commits (or without HEAD) has no descendants either;
+		// fall through to the normal log, which reports the real error.
+		descendants = nil
+	}
+
+	ancestors, err := s.gitLogRevisions(dir, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	head, headErr := s.runGitCommand(dir, "rev-parse", "HEAD")
+	head = strings.TrimSpace(head)
+
+	revisions := make([]Revision, 0, len(descendants)+len(ancestors))
+	seen := make(map[string]bool, len(descendants)+len(ancestors))
+	for _, rev := range append(descendants, ancestors...) {
+		if seen[rev.ID] {
+			continue
+		}
+		seen[rev.ID] = true
+		if headErr == nil && rev.ID == head {
+			rev.IsHead = true
+		}
+		revisions = append(revisions, rev)
+	}
+
+	return revisions, nil
+}
+
+// gitLogRevisions runs `git log` with the shared format and parses the output.
+// extraArgs narrows which commits are listed (revision ranges, --all, etc.).
+func (s *Service) gitLogRevisions(dir string, limit int, extraArgs ...string) ([]Revision, error) {
 	// \x01 (SOH) prefixes each commit so blocks can be split cleanly even
 	// though %B (full multi-line message) and --shortstat both span multiple lines.
-	output, err := s.runGitCommand(dir, "log",
+	args := append([]string{"log",
 		`--format=tformat:%x01%H%x1F%h%x1F%s%x1F%an%x1F%aI%x1F%D%x1F%P%x1F%B`,
 		"--shortstat",
-		fmt.Sprintf("-n%d", limit))
+		fmt.Sprintf("-n%d", limit),
+	}, extraArgs...)
+	output, err := s.runGitCommand(dir, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get git log: %w", err)
 	}
@@ -674,8 +713,11 @@ func (s *Service) getJJRevisions(dir string, limit int) ([]Revision, error) {
 	// though the full multi-line description and diff.stat() both span
 	// multiple lines (and may contain blank lines themselves).
 	// diff.stat(1000) gives "N files changed, X insertions(+), Y deletions(-)"
-	template := `"\x01" ++ change_id ++ "\x00" ++ change_id.shortest(8) ++ "\x00" ++ commit_id ++ "\x00" ++ description ++ "\x00" ++ author.name() ++ "\x00" ++ author.timestamp() ++ "\x00" ++ bookmarks.join("|") ++ "\x00" ++ parents.map(|p| p.change_id()).join("|") ++ "\x00" ++ diff.stat(1000) ++ "\n"`
-	output, err := s.runJJCommand(dir, "log", "--no-graph", "-r", fmt.Sprintf("ancestors(@, %d)", limit), "-T", template)
+	template := `"\x01" ++ change_id ++ "\x00" ++ change_id.shortest(8) ++ "\x00" ++ commit_id ++ "\x00" ++ description ++ "\x00" ++ author.name() ++ "\x00" ++ author.timestamp() ++ "\x00" ++ bookmarks.join("|") ++ "\x00" ++ parents.map(|p| p.change_id()).join("|") ++ "\x00" ++ current_working_copy ++ "\x00" ++ diff.stat(1000) ++ "\n"`
+	// descendants(@) picks up commits above the working copy (children of @ and
+	// anything built on top of them), which ancestors(@) alone would hide.
+	revset := fmt.Sprintf("ancestors(@, %d) | descendants(@)", limit)
+	output, err := s.runJJCommand(dir, "log", "--no-graph", "-r", revset, "-T", template)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get jj log: %w", err)
 	}
@@ -690,7 +732,7 @@ func (s *Service) getJJRevisions(dir string, limit int) ([]Revision, error) {
 		if block == "" {
 			continue
 		}
-		parts := strings.SplitN(block, "\x00", 9)
+		parts := strings.SplitN(block, "\x00", 10)
 		if len(parts) < 6 {
 			continue
 		}
@@ -708,8 +750,12 @@ func (s *Service) getJJRevisions(dir string, limit int) ([]Revision, error) {
 		if len(parts) >= 8 && parts[7] != "" {
 			rev.Parents = splitAndFilter(parts[7], "|")
 		}
-		if len(parts) >= 9 {
-			for line := range strings.SplitSeq(parts[8], "\n") {
+		if len(parts) >= 9 && strings.TrimSpace(parts[8]) == "true" {
+			rev.IsWorkingCopy = true
+			rev.IsHead = true
+		}
+		if len(parts) >= 10 {
+			for line := range strings.SplitSeq(parts[9], "\n") {
 				if strings.Contains(line, "changed") {
 					rev.Additions, rev.Deletions = parseDiffStat(line)
 					break
@@ -717,11 +763,6 @@ func (s *Service) getJJRevisions(dir string, limit int) ([]Revision, error) {
 			}
 		}
 		revisions = append(revisions, rev)
-	}
-
-	// In jj, the first revision (@ / working copy) is the working copy
-	if len(revisions) > 0 {
-		revisions[0].IsWorkingCopy = true
 	}
 
 	return revisions, nil

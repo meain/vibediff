@@ -53,6 +53,11 @@ export interface Revision {
   author: string
   timestamp: string
   isWorkingCopy?: boolean
+  /**
+   * Marks the currently checked-out revision (git HEAD / jj @). The list also
+   * contains commits above it, so it is not necessarily the first entry.
+   */
+  isHead?: boolean
   bookmarks?: string[]
   parents?: string[]
   additions?: number
