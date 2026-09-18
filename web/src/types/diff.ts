@@ -43,6 +43,12 @@ export type VCSBackend = 'git' | 'jj'
 export interface Revision {
   id: string
   shortId: string
+  /**
+   * Content fingerprint for the revision. For git it equals `id`; for jj it is
+   * the commit id, which changes on amend/snapshot while `id` (the change id)
+   * stays stable. Used to invalidate "commit reviewed" marks.
+   */
+  commitId?: string
   description: string
   author: string
   timestamp: string

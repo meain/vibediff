@@ -11,7 +11,31 @@ interface RevisionListProps {
   onSelectRevision: (revisionId: string | null) => void
   backend: VCSBackend
   reviewedRevisions?: Set<string>
+  onToggleRevisionReviewed?: (revisionId: string) => void
   commentCounts?: Map<string, number>
+}
+
+/** Checkbox marking a whole commit as reviewed. */
+function ReviewedCheckbox({
+  checked,
+  onToggle,
+}: {
+  checked: boolean
+  onToggle: () => void
+}): React.ReactElement {
+  return (
+    <input
+      type="checkbox"
+      checked={checked}
+      onChange={(e) => { e.stopPropagation(); onToggle() }}
+      onClick={(e) => { e.stopPropagation(); }}
+      onMouseDown={(e) => { e.stopPropagation(); }}
+      onKeyDown={(e) => { e.stopPropagation(); }}
+      className="w-3.5 h-3.5 rounded border-edge text-accent cursor-pointer shrink-0 focus:ring-2 focus:ring-accent"
+      title={checked ? 'Mark commit as not reviewed' : 'Mark commit as reviewed'}
+      aria-label="Mark commit as reviewed"
+    />
+  )
 }
 
 function CommentCountBadge({ count }: { count: number }): React.ReactElement {
@@ -133,8 +157,8 @@ function RevisionRow({
   totalCols,
   isSelected,
   onSelect,
-  reviewedRevisions,
-  backend,
+  isReviewed,
+  onToggleReviewed,
   commentCount,
 }: {
   rev: Revision
@@ -142,8 +166,8 @@ function RevisionRow({
   totalCols: number
   isSelected: boolean
   onSelect: () => void
-  reviewedRevisions?: Set<string>
-  backend: VCSBackend
+  isReviewed: boolean
+  onToggleReviewed?: () => void
   commentCount: number
 }): React.ReactElement {
   const contentRef = useRef<HTMLDivElement>(null)
@@ -177,7 +201,10 @@ function RevisionRow({
       </div>
 
       <div ref={contentRef} className="flex flex-col justify-center py-1.5 pr-2 min-w-0 flex-1">
-        <div className="flex items-center gap-1.5">
+        <div className={`flex items-center gap-1.5 ${isReviewed ? 'opacity-60' : ''}`}>
+          {onToggleReviewed && (
+            <ReviewedCheckbox checked={isReviewed} onToggle={onToggleReviewed} />
+          )}
           <span
             className="font-mono text-[10px] px-1 py-0.5 rounded bg-surface-inset text-fg-muted shrink-0 select-text cursor-text"
             onClick={(e) => { e.stopPropagation(); }}
@@ -187,9 +214,6 @@ function RevisionRow({
             {rev.shortId}
           </span>
           <CopyButton value={rev.id} title="Copy commit ID" />
-          {reviewedRevisions?.has(rev.isWorkingCopy && backend === 'jj' ? 'working-copy' : rev.id) && (
-            <span className="text-[10px] text-success shrink-0" title="All files reviewed">✓</span>
-          )}
           <span className="truncate">
             {rev.description.split('\n', 1)[0] || '(no description)'}
           </span>
@@ -235,6 +259,7 @@ export default function RevisionList({
   onSelectRevision,
   backend,
   reviewedRevisions,
+  onToggleRevisionReviewed,
   commentCounts,
 }: RevisionListProps): React.ReactElement {
   const [filter, setFilter] = useState('')
@@ -284,9 +309,12 @@ export default function RevisionList({
               : 'text-fg hover:bg-surface-raised'
           }`}
         >
-          <div className="flex items-center gap-1">
-            {reviewedRevisions?.has('working-copy') && (
-              <span className="text-[10px] text-success shrink-0" title="All files reviewed">✓</span>
+          <div className={`flex items-center gap-1.5 ${reviewedRevisions?.has('working-copy') ? 'opacity-60' : ''}`}>
+            {onToggleRevisionReviewed && (
+              <ReviewedCheckbox
+                checked={reviewedRevisions?.has('working-copy') ?? false}
+                onToggle={() => { onToggleRevisionReviewed('working-copy') }}
+              />
             )}
             <span className="font-medium">Working copy changes</span>
             {!!commentCounts?.get('working-copy') && (
@@ -322,8 +350,8 @@ export default function RevisionList({
                 onSelectRevision(rev.id)
               }
             }}
-            reviewedRevisions={reviewedRevisions}
-            backend={backend}
+            isReviewed={reviewedRevisions?.has(countKey) ?? false}
+            onToggleReviewed={onToggleRevisionReviewed && (() => { onToggleRevisionReviewed(countKey) })}
             commentCount={commentCounts?.get(countKey) ?? 0}
           />
         )

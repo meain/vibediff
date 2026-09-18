@@ -34,3 +34,26 @@ export function computeFileHash(file: FileDiff): string {
     return ''
   }
 }
+
+/**
+ * Compute a hash over a whole diff (all files).
+ * Used as the content fingerprint for the git working-copy row, which has no
+ * commit id of its own. Includes file paths and statuses so adding/removing a
+ * file from the diff invalidates the hash too.
+ */
+export function computeDiffHash(files: FileDiff[]): string {
+  try {
+    const parts = files
+      .map(file => `${file.path}:${file.status}:${computeFileHash(file)}`)
+      .sort()
+    const encoded = btoa(
+      encodeURIComponent(parts.join('\n')).replace(/%([0-9A-F]{2})/g, (_, p1) =>
+        String.fromCharCode(parseInt(p1, 16))
+      )
+    )
+    return encoded.slice(0, 32)
+  } catch (error) {
+    console.error('Failed to compute diff hash:', error)
+    return ''
+  }
+}

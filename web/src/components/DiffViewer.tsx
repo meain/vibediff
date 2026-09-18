@@ -12,6 +12,7 @@ import { useRevisions } from '../hooks/useRevisions'
 import { useDarkMode } from '../hooks/useDarkMode'
 import { getButtonClassName, getIconButtonClassName } from '../utils/buttonStyles'
 import { scrollFileIntoView } from '../utils/scrollToFile'
+import { computeDiffHash } from '../utils/hashUtils'
 import {
   ListBulletIcon,
   CheckCircleIcon,
@@ -102,7 +103,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
   let collapseAllTitle = 'Collapse all'
   if (displayMode === 'single') collapseAllTitle = 'Available in All Files mode'
   else if (allFilesCollapsed) collapseAllTitle = 'Expand all'
-  const { reviewedRevisions, markRevisionReviewed, unmarkRevisionReviewed } = useReviewedRevisions(currentDirectory)
+  const { reviewedRevisions, markRevisionReviewed, toggleRevisionReviewed, validateRevisions } = useReviewedRevisions(currentDirectory)
   const [isDark, toggleDark] = useDarkMode()
   const { revisions, loading: revisionsLoading, refetch: refetchRevisions } = useRevisions(currentDirectory)
   const commentCountsByRevision = useAllComments(currentDirectory)
@@ -232,17 +233,53 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
   useLocalStorage('collapsedFolders', collapsedFolders)
   useLocalStorage('wrapLines', wrapLines)
 
-  // Auto-mark/unmark the current revision as fully reviewed whenever the
-  // reviewed-files set or diff data changes.
+  // Content fingerprint for the revision currently being viewed. jj revisions
+  // carry a commit id that changes on amend/snapshot; git's synthetic
+  // "working copy changes" row has no commit of its own, so hash its diff.
+  const workingCopyDiffHash = useMemo(
+    () => (selectedRevision === null && data?.files.length ? computeDiffHash(data.files) : null),
+    [selectedRevision, data]
+  )
+
+  // revisionId (as keyed in reviewed-state storage) -> current content hash.
+  const revisionHashes = useMemo(() => {
+    const hashes = new Map<string, string>()
+    for (const rev of revisions) {
+      const key = rev.isWorkingCopy && backend === 'jj' ? 'working-copy' : rev.id
+      hashes.set(key, rev.commitId ?? rev.id)
+    }
+    if (backend === 'git' && workingCopyDiffHash) {
+      hashes.set('working-copy', workingCopyDiffHash)
+    }
+    return hashes
+  }, [revisions, backend, workingCopyDiffHash])
+
+  // Drop commit-reviewed marks whose commit content changed (amend, rebase,
+  // new working-copy snapshot). Nothing else clears them.
+  useEffect(() => {
+    if (revisionHashes.size === 0) return
+    validateRevisions(revisionHashes)
+  }, [revisionHashes, validateRevisions])
+
+  const handleToggleRevisionReviewed = useCallback((revisionId: string) => {
+    toggleRevisionReviewed(revisionId, revisionHashes.get(revisionId) ?? '')
+  }, [toggleRevisionReviewed, revisionHashes])
+
+  // Auto-mark the viewed revision as reviewed once every file in it has been
+  // marked reviewed. Only fires once per (revision, content hash) so that
+  // unchecking the commit by hand isn't immediately undone; unmarking is
+  // always explicit (checkbox) or hash-driven.
+  const autoMarkedRef = useRef<Set<string>>(new Set())
   useEffect(() => {
     if (!data || data.files.length === 0) return
+    if (reviewedFiles.size < data.files.length) return
     const revKey = selectedRevision ?? 'working-copy'
-    if (reviewedFiles.size >= data.files.length) {
-      markRevisionReviewed(revKey)
-    } else {
-      unmarkRevisionReviewed(revKey)
-    }
-  }, [reviewedFiles, data, selectedRevision, markRevisionReviewed, unmarkRevisionReviewed])
+    const hash = revisionHashes.get(revKey) ?? ''
+    const token = `${revKey}::${hash}`
+    if (autoMarkedRef.current.has(token)) return
+    autoMarkedRef.current.add(token)
+    markRevisionReviewed(revKey, hash)
+  }, [reviewedFiles, data, selectedRevision, revisionHashes, markRevisionReviewed])
 
   // Auto-select first file when data loads and validate reviewed files
   useEffect(() => {
@@ -499,6 +536,20 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
         hint: 'r',
         icon: <CheckCircleIcon />,
         action: () => { handleToggleReviewed(file); },
+      })
+    }
+    if (data && data.files.length > 0) {
+      const revKey = selectedRevision ?? 'working-copy'
+      const isRevReviewed = reviewedRevisions.has(revKey)
+      items.push({
+        id: 'toggle-reviewed-current-commit',
+        section: 'Actions',
+        label: isRevReviewed ? 'Mark commit as not reviewed' : 'Mark commit as reviewed',
+        description: selectedRevisionData
+          ? `${selectedRevisionData.shortId} ${selectedRevisionData.description.split('\n', 1)[0] || '(no description)'}`
+          : 'Working copy changes',
+        icon: <CheckCircleIcon />,
+        action: () => { handleToggleRevisionReviewed(revKey); },
       })
     }
     if (pendingThreads > 0) {
@@ -765,6 +816,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
     formatPendingCommentsForExport, revisions, formatCommentsForExport, handleClearComments,
     handleClearReviewed, selectedFile, reviewedFiles, handleToggleReviewed, goToOlderCommit,
     goToNewerCommit, currentRevIndex, data, directories, currentDirectory, setCurrentDirectory, registerDirectory,
+    reviewedRevisions, handleToggleRevisionReviewed, selectedRevisionData,
   ])
 
   // Only show the full-screen loading spinner on the very first load (no
@@ -990,6 +1042,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
                   }}
                   backend={backend}
                   reviewedRevisions={reviewedRevisions}
+                  onToggleRevisionReviewed={handleToggleRevisionReviewed}
                   commentCounts={commentCountsByRevision}
                 />
               </div>

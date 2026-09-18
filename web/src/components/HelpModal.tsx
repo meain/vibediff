@@ -138,7 +138,11 @@ export default function HelpModal({ isOpen, onClose }: HelpModalProps): React.Re
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-accent mt-0.5">•</span>
-                <span><strong className="text-fg">Smart Tracking:</strong> Reviewed marks are validated against file content - if a file changes, the reviewed mark is automatically cleared.</span>
+                <span><strong className="text-fg">Reviewed Commits:</strong> Check the checkbox next to a revision in the commit list to mark the whole commit as reviewed. Marking every file in a commit reviewed checks it automatically.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-accent mt-0.5">•</span>
+                <span><strong className="text-fg">Smart Tracking:</strong> Reviewed marks are validated against content - if a file changes its reviewed mark is cleared, and a commit mark is cleared only when that commit&apos;s contents change (amend, rebase, new working-copy snapshot).</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-accent mt-0.5">•</span>

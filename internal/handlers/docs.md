@@ -212,7 +212,10 @@ Return recent commits.
 | `directory` | path   | **Required.** |
 | `limit`     | integer | Default: 50. |
 
-Use the returned `id` values as `revision` params elsewhere.
+Use the returned `id` values as `revision` params elsewhere. Each revision also
+carries `commitId`, a fingerprint of its contents — for git it equals `id`, for
+jj it is the commit id, which changes on amend/snapshot while `id` (the change
+id) stays stable.
 
 ### `GET /api/file`
 

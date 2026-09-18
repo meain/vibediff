@@ -613,6 +613,7 @@ func (s *Service) getGitRevisions(dir string, limit int) ([]Revision, error) {
 		rev := Revision{
 			ID:          parts[0],
 			ShortID:     parts[1],
+			CommitID:    parts[0],
 			Description: parts[2],
 			Author:      parts[3],
 			Timestamp:   parts[4],
@@ -673,7 +674,7 @@ func (s *Service) getJJRevisions(dir string, limit int) ([]Revision, error) {
 	// though the full multi-line description and diff.stat() both span
 	// multiple lines (and may contain blank lines themselves).
 	// diff.stat(1000) gives "N files changed, X insertions(+), Y deletions(-)"
-	template := `"\x01" ++ change_id ++ "\x00" ++ change_id.shortest(8) ++ "\x00" ++ description ++ "\x00" ++ author.name() ++ "\x00" ++ author.timestamp() ++ "\x00" ++ bookmarks.join("|") ++ "\x00" ++ parents.map(|p| p.change_id()).join("|") ++ "\x00" ++ diff.stat(1000) ++ "\n"`
+	template := `"\x01" ++ change_id ++ "\x00" ++ change_id.shortest(8) ++ "\x00" ++ commit_id ++ "\x00" ++ description ++ "\x00" ++ author.name() ++ "\x00" ++ author.timestamp() ++ "\x00" ++ bookmarks.join("|") ++ "\x00" ++ parents.map(|p| p.change_id()).join("|") ++ "\x00" ++ diff.stat(1000) ++ "\n"`
 	output, err := s.runJJCommand(dir, "log", "--no-graph", "-r", fmt.Sprintf("ancestors(@, %d)", limit), "-T", template)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get jj log: %w", err)
@@ -689,25 +690,26 @@ func (s *Service) getJJRevisions(dir string, limit int) ([]Revision, error) {
 		if block == "" {
 			continue
 		}
-		parts := strings.SplitN(block, "\x00", 8)
-		if len(parts) < 5 {
+		parts := strings.SplitN(block, "\x00", 9)
+		if len(parts) < 6 {
 			continue
 		}
 		rev := Revision{
 			ID:          parts[0],
 			ShortID:     parts[1],
-			Description: strings.TrimRight(parts[2], "\n"),
-			Author:      parts[3],
-			Timestamp:   parts[4],
-		}
-		if len(parts) >= 6 && parts[5] != "" {
-			rev.Bookmarks = parseJJBookmarks(parts[5])
+			CommitID:    parts[2],
+			Description: strings.TrimRight(parts[3], "\n"),
+			Author:      parts[4],
+			Timestamp:   parts[5],
 		}
 		if len(parts) >= 7 && parts[6] != "" {
-			rev.Parents = splitAndFilter(parts[6], "|")
+			rev.Bookmarks = parseJJBookmarks(parts[6])
 		}
-		if len(parts) >= 8 {
-			for line := range strings.SplitSeq(parts[7], "\n") {
+		if len(parts) >= 8 && parts[7] != "" {
+			rev.Parents = splitAndFilter(parts[7], "|")
+		}
+		if len(parts) >= 9 {
+			for line := range strings.SplitSeq(parts[8], "\n") {
 				if strings.Contains(line, "changed") {
 					rev.Additions, rev.Deletions = parseDiffStat(line)
 					break

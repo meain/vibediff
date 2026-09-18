@@ -67,8 +67,14 @@ type DiffResult struct {
 
 // Revision represents a single commit/revision in the VCS history
 type Revision struct {
-	ID            string   `json:"id"`
-	ShortID       string   `json:"shortId"`
+	ID      string `json:"id"`
+	ShortID string `json:"shortId"`
+	// CommitID fingerprints the revision's content. For git it is the commit
+	// hash (identical to ID); for jj it is the commit id, which changes on
+	// every amend/snapshot while the change id (ID) stays stable. The frontend
+	// uses it to invalidate "commit reviewed" marks when a commit's contents
+	// change.
+	CommitID      string   `json:"commitId,omitempty"`
 	Description   string   `json:"description"`
 	Author        string   `json:"author"`
 	Timestamp     string   `json:"timestamp"`
