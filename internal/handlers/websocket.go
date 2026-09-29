@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sync/atomic"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -31,6 +32,9 @@ type WSHub struct {
 	unregister chan *WSClient
 	broadcast  chan []byte
 	done       chan bool
+	// clientCount mirrors len(clients) so other goroutines can read it
+	// without touching the map, which is owned by Run.
+	clientCount atomic.Int64
 }
 
 // NewWSHub creates a new WebSocket hub
@@ -83,9 +87,16 @@ func (h *WSHub) Run() {
 			if os.Getenv("VIBEDIFF_DEBUG") == "true" {
 				log.Printf("WebSocket hub shutdown complete")
 			}
+			h.clientCount.Store(0)
 			return
 		}
+		h.clientCount.Store(int64(len(h.clients)))
 	}
+}
+
+// ClientCount returns the number of connected WebSocket clients.
+func (h *WSHub) ClientCount() int {
+	return int(h.clientCount.Load())
 }
 
 // Shutdown gracefully shuts down the WebSocket hub

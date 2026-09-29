@@ -17,6 +17,13 @@ type ChangeNotifier interface {
 	NotifyChange(changeType string, dir string)
 }
 
+// ClientCounter is optionally implemented by a ChangeNotifier to report how
+// many clients are listening. When it reports zero, revision polling is
+// skipped.
+type ClientCounter interface {
+	ClientCount() int
+}
+
 // DirectoryLister provides the list of directories to watch.
 type DirectoryLister interface {
 	List() []string
@@ -111,13 +118,7 @@ func (w *GitWatcher) Start() {
 					continue
 				}
 				// Find the registered dir this event belongs to
-				dir := ""
-				for d := range w.watchedDirs {
-					if strings.HasPrefix(event.Name, d) {
-						dir = d
-						break
-					}
-				}
+				dir := matchDir(event.Name, w.watchedDirs)
 				if dir == "" {
 					continue
 				}
@@ -218,7 +219,29 @@ func (w *GitWatcher) checkDir(dir string) {
 	w.hub.NotifyChange(changeType, dir)
 }
 
+// matchDir returns the watched dir that contains path, or "" if none does.
+// Matching is on a path-separator boundary so /a/foo does not claim events
+// from /a/foobar; when dirs are nested, the longest (most specific) wins.
+func matchDir(path string, dirs map[string]bool) string {
+	best := ""
+	for d := range dirs {
+		if path != d && !strings.HasPrefix(path, strings.TrimSuffix(d, string(os.PathSeparator))+string(os.PathSeparator)) {
+			continue
+		}
+		if len(d) > len(best) {
+			best = d
+		}
+	}
+	return best
+}
+
 func (w *GitWatcher) checkAllRevisions() {
+	// Nobody to notify: skip the per-dir subprocesses entirely. The first
+	// poll after a client connects may report a change against the stale
+	// signature, which just triggers a harmless refresh.
+	if cc, ok := w.hub.(ClientCounter); ok && cc.ClientCount() == 0 {
+		return
+	}
 	dirs := w.registry.List()
 	for _, dir := range dirs {
 		w.checkRevisions(dir)

@@ -562,7 +562,10 @@ func (s *Service) GetRevisions(dir string, limit int) ([]Revision, error) {
 // status and therefore wouldn't otherwise trigger a refresh.
 func (s *Service) RevisionSignature(dir string) (string, error) {
 	if s.getBackend(dir) == BackendJJ {
-		// The operation id advances on any repo mutation.
+		// The operation id advances on any repo mutation. Deliberately not
+		// --ignore-working-copy: the snapshot this triggers is what surfaces
+		// edits in subdirectories, which the non-recursive fsnotify watch
+		// never sees.
 		return s.runJJCommand(dir, "op", "log", "--no-graph", "-n", "1", "-T", "id")
 	}
 	// Commit hashes plus ref decorations for the revisions we display;
