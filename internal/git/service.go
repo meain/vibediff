@@ -2,6 +2,7 @@ package git
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -10,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 type Service struct {
@@ -48,14 +50,12 @@ func (s *Service) detectBackend(dir string) VCSBackend {
 }
 
 func (s *Service) isJJRepo(dir string) bool {
-	var cmd *exec.Cmd
+	args := []string{"root"}
 	if dir != "" {
-		cmd = exec.Command("jj", "root", "-R", dir)
-	} else {
-		cmd = exec.Command("jj", "root")
+		args = append(args, "-R", dir)
 	}
-	cmd.Stderr = nil
-	return cmd.Run() == nil
+	_, err := runCommand(context.Background(), "jj", args...)
+	return err == nil
 }
 
 // GetDiff retrieves the diff with optional context lines (default: 3)
@@ -189,6 +189,37 @@ func (s *Service) getJJStatus(dir string) ([]string, error) {
 	return files, nil
 }
 
+// commandTimeout bounds every git/jj subprocess so a hung VCS call (lock
+// contention, credential prompt, huge repo) can't wedge a request or the
+// watcher forever. A var so tests can shorten it.
+var commandTimeout = 30 * time.Second
+
+// runCommand runs name with args under commandTimeout and returns stdout.
+// Errors include the full command line and stderr.
+func runCommand(ctx context.Context, name string, args ...string) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, commandTimeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, name, args...)
+	var out bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &stderr
+	// If the process is killed but a grandchild still holds the pipes,
+	// don't let Wait block indefinitely.
+	cmd.WaitDelay = time.Second
+
+	if err := cmd.Run(); err != nil {
+		cmdline := strings.Join(append([]string{name}, args...), " ")
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			err = ctxErr
+		}
+		return "", fmt.Errorf("%s: %w: %s", cmdline, err, strings.TrimSpace(stderr.String()))
+	}
+
+	return out.String(), nil
+}
+
 func (s *Service) runGitCommand(dir string, args ...string) (string, error) {
 	var cmdArgs []string
 	if dir != "" {
@@ -197,18 +228,7 @@ func (s *Service) runGitCommand(dir string, args ...string) (string, error) {
 		cmdArgs = args
 	}
 
-	cmd := exec.Command("git", cmdArgs...)
-	var out bytes.Buffer
-	var stderr bytes.Buffer
-	cmd.Stdout = &out
-	cmd.Stderr = &stderr
-
-	err := cmd.Run()
-	if err != nil {
-		return "", fmt.Errorf("git command failed: %s", stderr.String())
-	}
-
-	return out.String(), nil
+	return runCommand(context.Background(), "git", cmdArgs...)
 }
 
 func (s *Service) runJJCommand(dir string, args ...string) (string, error) {
@@ -222,18 +242,7 @@ func (s *Service) runJJCommand(dir string, args ...string) (string, error) {
 	// Use --no-pager and --color=never for consistent output
 	cmdArgs = append([]string{"--no-pager", "--color=never"}, cmdArgs...)
 
-	cmd := exec.Command("jj", cmdArgs...)
-	var out bytes.Buffer
-	var stderr bytes.Buffer
-	cmd.Stdout = &out
-	cmd.Stderr = &stderr
-
-	err := cmd.Run()
-	if err != nil {
-		return "", fmt.Errorf("jj command failed: %s", stderr.String())
-	}
-
-	return out.String(), nil
+	return runCommand(context.Background(), "jj", cmdArgs...)
 }
 
 // markGeneratedFiles tags FileDiff entries whose paths are marked
@@ -274,13 +283,9 @@ func (s *Service) getGeneratedSet(dir string, paths []string) map[string]bool {
 	} else {
 		cmdArgs = args
 	}
-	cmd := exec.Command("git", cmdArgs...)
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	cmd.Stderr = nil
-	if err := cmd.Run(); err == nil {
+	if out, err := runCommand(context.Background(), "git", cmdArgs...); err == nil {
 		// Output: "filename: linguist-generated: set|true|unspecified"
-		for _, line := range strings.Split(out.String(), "\n") {
+		for _, line := range strings.Split(out, "\n") {
 			parts := strings.SplitN(line, ": ", 3)
 			if len(parts) == 3 {
 				val := strings.TrimSpace(parts[2])
@@ -860,16 +865,12 @@ func (s *Service) getJJRevisionDiff(dir string, revisionID string, context int) 
 // ValidateRepo checks if the directory is a valid git or jj repository
 func (s *Service) ValidateRepo(dir string) error {
 	// Check jj first
-	cmd := exec.Command("jj", "root", "-R", dir)
-	cmd.Stderr = nil
-	if cmd.Run() == nil {
+	if _, err := runCommand(context.Background(), "jj", "root", "-R", dir); err == nil {
 		return nil
 	}
 
 	// Fall back to git
-	cmd = exec.Command("git", "-C", dir, "rev-parse", "--git-dir")
-	cmd.Stderr = nil
-	if cmd.Run() == nil {
+	if _, err := runCommand(context.Background(), "git", "-C", dir, "rev-parse", "--git-dir"); err == nil {
 		return nil
 	}
 
