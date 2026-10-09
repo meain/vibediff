@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import type { Comment } from '../types/diff'
 import { formatRelativeTime } from '../utils/time'
+import CopyButton from './CopyButton'
 import { useCommentReaction } from '../contexts/CommentReactionContext'
 import { groupIntoThreads } from '../utils/threads'
 import { parseCommentSegments, pairLinesForDiff, type DiffToken, type PairedLine } from '../utils/suggestions'
@@ -96,6 +97,51 @@ function CommentBody({ comment }: { comment: Comment }): React.ReactElement {
   )
 }
 
+// Three-dot overflow menu on a comment card; currently just shows the ID.
+function CommentMenu({ commentId }: { commentId: string }): React.ReactElement {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: MouseEvent): void => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => { setOpen(o => !o) }}
+        className="text-fg-subtle hover:text-fg text-lg px-2 py-0 rounded hover:bg-surface-inset transition-colors cursor-pointer border-none bg-transparent leading-none"
+        title="More"
+        aria-haspopup="menu"
+        aria-expanded={open}
+      >
+        ⋯
+      </button>
+      {open && (
+        <div role="menu" className="absolute right-0 top-full mt-1 z-20 min-w-40 px-3 py-2 bg-surface border border-edge rounded-md shadow-lg text-xs">
+          <div className="text-fg-subtle mb-0.5">Comment ID</div>
+          <div className="flex items-center gap-1.5">
+            <span className="font-mono text-fg select-all">{commentId}</span>
+            <CopyButton value={commentId} title="Copy comment ID" />
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 interface CommentCardProps {
   comment: Comment
   isReply?: boolean
@@ -163,12 +209,12 @@ function CommentCard({ comment, isReply, parentResolved, replyCount, repliesColl
     authorLabel = comment.authorName ? `agent:${comment.authorName}` : 'Agent'
   }
   const rootClass = isReply
-    ? `ml-6 mt-1 bg-surface border border-edge rounded-lg overflow-hidden ${dimmed ? 'opacity-60' : ''}`
-    : `bg-surface border border-edge rounded-lg border-l-[3px] ${accentClass} overflow-hidden ${dimmed ? 'opacity-60' : ''}`
+    ? `ml-6 mt-1 bg-surface border border-edge rounded-lg ${dimmed ? 'opacity-60' : ''}`
+    : `bg-surface border border-edge rounded-lg border-l-[3px] ${accentClass} ${dimmed ? 'opacity-60' : ''}`
 
   return (
     <div data-comment-id={comment.id} className={rootClass}>
-      <div className="flex items-center justify-between px-3 py-1.5 bg-surface-raised gap-2">
+      <div className="flex items-center justify-between px-3 py-1.5 bg-surface-raised gap-2 rounded-t-lg">
         <div className="text-xs text-fg-muted flex items-center gap-1.5 flex-wrap">
           <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide ${
             isAgent ? 'bg-info/20 text-info' : 'bg-accent/20 text-accent'
@@ -257,6 +303,7 @@ function CommentCard({ comment, isReply, parentResolved, replyCount, repliesColl
               ×
             </button>
           )}
+          <CommentMenu commentId={comment.id} />
         </div>
       </div>
       {editing ? (
