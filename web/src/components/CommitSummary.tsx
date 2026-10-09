@@ -45,7 +45,10 @@ function formatRelativeTimestamp(ts: string): string {
 
 export default function CommitSummary({ revision, filesChanged, additions, deletions }: CommitSummaryProps): React.ReactElement {
   const [expanded, setExpanded] = useState(false)
-  const absolute = formatAbsoluteTimestamp(revision.timestamp)
+  // jj: id is the change id, commitId is the underlying git commit. For git
+  // the two are identical, so only show the extra chip when they differ.
+  const gitCommitId = revision.commitId && revision.commitId !== revision.id ? revision.commitId : undefined
+  const absolute =formatAbsoluteTimestamp(revision.timestamp)
   const relative = formatRelativeTimestamp(revision.timestamp)
 
   const newlineIdx = revision.description.indexOf('\n')
@@ -100,8 +103,20 @@ export default function CommitSummary({ revision, filesChanged, additions, delet
               >
                 {revision.shortId}
               </span>
-              <CopyButton value={revision.id} title="Copy commit ID" />
+              <CopyButton value={revision.id} title={gitCommitId ? 'Copy change ID' : 'Copy commit ID'} />
             </span>
+
+            {gitCommitId && (
+              <span className="flex items-center gap-1">
+                <span
+                  className="font-mono text-[10px] px-1 py-0.5 rounded bg-surface-inset text-fg-muted select-text cursor-text"
+                  title={`git commit ${gitCommitId}`}
+                >
+                  {gitCommitId.slice(0, 8)}
+                </span>
+                <CopyButton value={gitCommitId} title="Copy git commit ID" />
+              </span>
+            )}
 
             {revision.bookmarks && revision.bookmarks.length > 0 && (
               <span className="flex items-center gap-1 flex-wrap">
