@@ -1060,7 +1060,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
         {/* Main Content */}
         <Panel defaultSize={80} minSize={40} id="main">
           <div className="h-full bg-surface overflow-y-auto">
-        {selectedRevisionData && data && data.files.length > 0 && (
+        {selectedRevisionData && data && (
           <CommitSummary
             revision={selectedRevisionData}
             filesChanged={data.files.length}
