@@ -339,7 +339,7 @@ function CommentCard({ comment, isReply, parentResolved, replyCount, repliesColl
             onKeyDown={handleKeyDown}
             rows={3}
             disabled={saving}
-            className="w-full text-sm text-fg bg-surface-inset border border-edge rounded px-2 py-1.5 resize-y focus:outline-none focus:border-accent"
+            className="w-full text-sm text-fg bg-surface border border-edge rounded px-2 py-1.5 resize-y focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/20"
           />
           <div className="flex items-center gap-2 mt-1.5">
             <button
@@ -447,7 +447,7 @@ export default function CommentDisplay({ comments, onDelete, onUpdate, onAddRepl
           ))}
           {!isCollapsed && replyingToId === thread.root.id && (
             <div className="ml-6 mt-1">
-              <div className="px-3 py-2 bg-surface border border-edge rounded-lg">
+              <div className="px-3 py-2 bg-accent-muted/30 border border-accent/30 rounded-lg">
                 <textarea
                   ref={replyRef}
                   value={replyDraft}
@@ -456,7 +456,7 @@ export default function CommentDisplay({ comments, onDelete, onUpdate, onAddRepl
                   placeholder="Write a reply..."
                   rows={2}
                   disabled={replySaving}
-                  className="w-full text-sm text-fg bg-surface-inset border border-edge rounded px-2 py-1.5 resize-none focus:outline-none focus:border-accent"
+                  className="w-full text-sm text-fg bg-surface border border-edge rounded px-2 py-1.5 resize-none focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/20"
                   style={{ fontFamily: 'inherit' }}
                 />
                 <div className="flex items-center gap-2 mt-1.5">
