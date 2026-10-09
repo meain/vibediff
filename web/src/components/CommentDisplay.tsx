@@ -193,14 +193,6 @@ function CommentCard({ comment, isReply, parentResolved, replyCount, repliesColl
               {repliesCollapsed ? `▸ ${String(replyCount)}` : `▾ ${String(replyCount)}`}
             </button>
           )}
-          {!isReply && comment.commit && (
-            <>
-              <span className="text-fg-subtle">·</span>
-              <span className="text-fg-subtle font-mono" title={comment.commit}>
-                {comment.revision ? `${comment.revision.slice(0, 8)} ` : ''}@{comment.commit.slice(0, 7)}
-              </span>
-            </>
-          )}
         </div>
         <div className="flex items-center gap-1">
           {onReact && !editing && (['up', 'down'] as const).map(kind => {
