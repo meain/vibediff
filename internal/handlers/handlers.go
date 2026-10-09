@@ -153,9 +153,7 @@ func validateComment(c *review.Comment) error {
 		if strings.TrimSpace(c.File) == "" {
 			return fmt.Errorf("file is required for root comments (without it the comment cannot be anchored to a diff line and will not appear in the UI)")
 		}
-		if c.Line == 0 {
-			return fmt.Errorf("line is required")
-		}
+		// line 0 (or omitted) marks a file-level comment.
 	}
 	if c.Author != "" && c.Author != review.AuthorUser && c.Author != review.AuthorAgent {
 		return fmt.Errorf("author must be %q or %q, got %q", review.AuthorUser, review.AuthorAgent, c.Author)

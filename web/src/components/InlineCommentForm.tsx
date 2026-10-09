@@ -53,13 +53,15 @@ export default function InlineCommentForm({ line, lineEnd, onSubmit, onCancel, c
     }
   }
 
-  const rangeLabel = lineEnd !== line
-    ? `Lines ${String(Math.abs(line))}-${String(Math.abs(lineEnd))}`
-    : `Line ${String(Math.abs(line))}`
+  const isFileLevel = line === 0
+  let rangeLabel = `Line ${String(Math.abs(line))}`
+  if (isFileLevel) {
+    rangeLabel = 'File comment'
+  } else if (lineEnd !== line) {
+    rangeLabel = `Lines ${String(Math.abs(line))}-${String(Math.abs(lineEnd))}`
+  }
 
-  return (
-    <tr>
-      <td colSpan={colSpan} className="p-0">
+  const form = (
         <div className="mx-3 my-1.5 rounded-lg border border-accent/30 bg-accent-muted/30 overflow-hidden max-w-2xl">
             <div className="px-3 py-1.5 border-b border-accent/20 flex items-center justify-between">
               <span className="text-xs font-medium text-fg-muted">{rangeLabel}</span>
@@ -111,6 +113,14 @@ export default function InlineCommentForm({ line, lineEnd, onSubmit, onCancel, c
               </button>
             </div>
           </div>
+  )
+
+  if (isFileLevel) return form
+
+  return (
+    <tr>
+      <td colSpan={colSpan} className="p-0">
+        {form}
       </td>
     </tr>
   )

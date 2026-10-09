@@ -8,6 +8,7 @@ import { parseCommentSegments, formatSuggestionExportHunk } from '../utils/sugge
 // FileDiff.tsx's lineNumberOf), so a negative value here means the comment
 // anchors to the removed side of the diff rather than the added/context side.
 function formatLineRef(line: number, lineEnd: number): string {
+  if (line === 0) return 'File'
   const startTag = line < 0 ? ' (removed)' : ''
   const endTag = lineEnd < 0 ? ' (removed)' : ''
   if (line === lineEnd) {

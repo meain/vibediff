@@ -137,6 +137,9 @@ Returns the created Comment object with its generated `id`.
 clients to tag which kind of agent posted the comment (e.g. `"explainer"`);
 the UI renders it as `agent:<authorName>`.
 
+**File-level comments**: omit `line` (or send `0`) to attach the comment to the
+file as a whole rather than a diff line.
+
 **Replies**: when `parentId` is set, `file`, `line`, `lineEnd`, `revision`, and
 `directory` are automatically inherited from the parent — you only need to
 supply `content` and `parentId`.

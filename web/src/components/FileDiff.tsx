@@ -452,6 +452,8 @@ function FileDiff({
     return order
   }, [file.hunks, getGapBeforeHunk, getGapAfterLastHunk, getGapRenderData, lineNumberOf])
 
+  const fileLevelComments = getCommentsForLine(file.path, 0)
+
   const commentRangeLines = useMemo(() =>
     getCommentRangeLines ? getCommentRangeLines(file.path, lineOrder) : new Set<number>()
   , [getCommentRangeLines, file.path, lineOrder])
@@ -653,6 +655,14 @@ function FileDiff({
             </button>
           )}
 
+          <button
+            onClick={(e) => { e.stopPropagation(); onAddComment(0, 0); }}
+            className="px-2 py-[3px] text-xs font-medium bg-surface-inset text-fg-muted border border-edge rounded-md hover:bg-edge hover:text-fg transition-colors cursor-pointer"
+            title="Add a comment on the whole file"
+          >
+            + Comment
+          </button>
+
           {!hideViewFullFile && (
             <button
               onClick={(e) => { e.stopPropagation(); onViewFullFile(); }}
@@ -677,6 +687,25 @@ function FileDiff({
       {/* Diff Content */}
       {!collapsed && (
         <div className="overflow-x-auto border-x border-b border-edge rounded-b">
+          {fileLevelComments.length > 0 && (
+            <CommentDisplay
+              comments={fileLevelComments}
+              onDelete={(id) => { void onDeleteComment(id); }}
+              onUpdate={onUpdateComment}
+              onAddReply={onAddReply}
+              onResolve={onResolveComment ? (id) => { void onResolveComment(id); } : undefined}
+              onReopen={onReopenComment ? (id) => { void onReopenComment(id); } : undefined}
+            />
+          )}
+          {activeComment?.line === 0 && onSubmitComment && onCancelComment && (
+            <InlineCommentForm
+              line={0}
+              lineEnd={0}
+              onSubmit={onSubmitComment}
+              onCancel={onCancelComment}
+              colSpan={1}
+            />
+          )}
           {viewMode === 'unified' ? (
             <table className="diff-table w-full">
               <tbody>
