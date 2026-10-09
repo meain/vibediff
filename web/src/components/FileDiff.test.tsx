@@ -865,3 +865,25 @@ describe('FileDiff hidden-line expansion -- split view & wiring gaps (Phase 3b)'
     expect(screen.getByText('Line 20')).toBeInTheDocument()
   })
 })
+
+describe('FileDiff hidden-gap comment count', () => {
+  const base = { file: 'foo.go', content: 'x', author: 'user', status: 'open', createdAt: '2026-01-01T00:00:00Z' } as const
+  const comments: Comment[] = [
+    { ...base, id: 'a', line: 20, lineEnd: 20 },
+    { ...base, id: 'b', line: 30, lineEnd: 32 },
+    { ...base, id: 'c', line: 12, lineEnd: 12 }, // visible in hunk A
+    { ...base, id: 'd', line: 20, lineEnd: 20, parentId: 'a' }, // reply, not counted
+    { ...base, id: 'e', line: 0, lineEnd: 0 }, // file-level, not counted
+  ]
+
+  it('shows how many root comments sit inside a hidden gap', () => {
+    render(<FileDiff {...baseProps(buildMainFile(), { fileComments: comments })} />)
+    const banner = scopeFromHiddenLabel('34 lines hidden')
+    expect(within(banner).getByRole('button', { name: '2 comments' })).toBeInTheDocument()
+  })
+
+  it('omits the count when no comments are hidden', () => {
+    render(<FileDiff {...baseProps(buildMainFile())} />)
+    expect(screen.queryByText(/comments?$/)).toBeNull()
+  })
+})

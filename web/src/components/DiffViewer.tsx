@@ -120,6 +120,17 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
     return counts
   }, [comments, showComments])
 
+  const commentsByFile = useMemo(() => {
+    const byFile = new Map<string, Comment[]>()
+    if (!showComments) return byFile
+    for (const comment of comments) {
+      const list = byFile.get(comment.file)
+      if (list) list.push(comment)
+      else byFile.set(comment.file, [comment])
+    }
+    return byFile
+  }, [comments, showComments])
+
   const getCommentsForLineGated = useCallback(
     (file: string, line: number) => showComments ? getCommentsForLine(file, line) : [],
     [showComments, getCommentsForLine]
@@ -1115,6 +1126,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
                 directory={currentDirectory}
                 isReviewed={reviewedFiles.has(file.path)}
                 onToggleReviewed={() => { handleToggleReviewed(file); }}
+                fileComments={commentsByFile.get(file.path)}
                 commentCount={showComments ? comments.filter(c => c.file === file.path && !c.parentId).length : 0}
                 pendingCommentCount={showComments ? comments.filter(c => c.file === file.path && !c.parentId && c.status === 'open').length : 0}
                 activeComment={commentDialog?.file === file.path ? { line: commentDialog.line, lineEnd: commentDialog.lineEnd } : null}
@@ -1154,6 +1166,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
               directory={currentDirectory}
               isReviewed={reviewedFiles.has(selectedFile.path)}
               onToggleReviewed={handleSingleFileToggleReviewed}
+              fileComments={commentsByFile.get(selectedFile.path)}
               commentCount={showComments ? comments.filter(c => c.file === selectedFile.path && !c.parentId).length : 0}
               pendingCommentCount={showComments ? comments.filter(c => c.file === selectedFile.path && !c.parentId && c.status === 'open').length : 0}
               activeComment={commentDialog?.file === selectedFile.path ? { line: commentDialog.line, lineEnd: commentDialog.lineEnd } : null}

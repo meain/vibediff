@@ -14,6 +14,7 @@ interface SplitViewLineResult {
 }
 
 const EXPAND_STEP = 10
+const NO_COMMENTS: Comment[] = []
 
 interface GapInfo {
   key: string
@@ -32,13 +33,18 @@ interface GapRenderData {
   topLines: DiffLineType[]
   bottomLines: DiffLineType[]
   remainingHidden: number
+  // Inclusive new-file line range still hidden (hiddenEnd is Infinity when the
+  // file length is unknown).
+  hiddenStart: number
+  hiddenEnd: number
   isExpanded: boolean
   unknownCount?: boolean
 }
 
-function GapRow({ gap, gapData, isLoading, onExpandDown, onExpandUp, onExpandAll, onCollapse, colSpan }: {
+function GapRow({ gap, gapData, hiddenCommentCount, isLoading, onExpandDown, onExpandUp, onExpandAll, onCollapse, colSpan }: {
   gap: GapInfo
   gapData: GapRenderData
+  hiddenCommentCount: number
   isLoading: boolean
   onExpandDown: () => void
   onExpandUp: () => void
@@ -95,6 +101,15 @@ function GapRow({ gap, gapData, isLoading, onExpandDown, onExpandUp, onExpandAll
               {String(gapData.remainingHidden)} lines hidden
             </span>
           )}
+          {!isLoading && hiddenCommentCount > 0 && (
+            <button
+              onClick={onExpandAll}
+              className="inline-flex items-center px-2 py-0.5 text-accent hover:bg-accent/10 transition-colors bg-transparent border-0 cursor-pointer"
+              title="Expand to show comments"
+            >
+              {String(hiddenCommentCount)} {hiddenCommentCount === 1 ? 'comment' : 'comments'}
+            </button>
+          )}
 
           {gapData.isExpanded && (
             <button
@@ -136,6 +151,9 @@ interface FileDiffProps {
   onToggleReviewed?: () => void
   commentCount?: number
   pendingCommentCount?: number
+  // All comments (roots and replies) on this file, used to count comments
+  // hidden inside collapsed context gaps.
+  fileComments?: Comment[]
   activeComment?: { line: number; lineEnd: number } | null
   onSubmitComment?: (content: string, originalContent?: string) => void
   onCancelComment?: () => void
@@ -166,6 +184,7 @@ function FileDiff({
   onToggleReviewed,
   commentCount = 0,
   pendingCommentCount = 0,
+  fileComments = NO_COMMENTS,
   activeComment = null,
   onSubmitComment,
   onCancelComment
@@ -398,16 +417,16 @@ function FileDiff({
       if (fullDiffMaxLine != null && fullDiffMaxLine >= gap.gapStart) {
         effectiveGapEnd = fullDiffMaxLine
       } else if (!fullLineMap) {
-        return { topLines: [], bottomLines: [], remainingHidden: 1, isExpanded, unknownCount: true }
+        return { topLines: [], bottomLines: [], remainingHidden: 1, hiddenStart: gap.gapStart, hiddenEnd: Infinity, isExpanded, unknownCount: true }
       } else {
-        return { topLines: [], bottomLines: [], remainingHidden: 0, isExpanded: false }
+        return { topLines: [], bottomLines: [], remainingHidden: 0, hiddenStart: gap.gapStart, hiddenEnd: gap.gapStart - 1, isExpanded: false }
       }
     }
 
     const totalGap = effectiveGapEnd - gap.gapStart + 1
 
     if (!fullLineMap || !isExpanded) {
-      return { topLines: [], bottomLines: [], remainingHidden: totalGap, isExpanded }
+      return { topLines: [], bottomLines: [], remainingHidden: totalGap, hiddenStart: gap.gapStart, hiddenEnd: effectiveGapEnd, isExpanded }
     }
 
     const effectiveDown = Math.min(expansion.down, totalGap)
@@ -427,7 +446,14 @@ function FileDiff({
     }
 
     const remainingHidden = Math.max(0, totalGap - effectiveDown - effectiveUp)
-    return { topLines, bottomLines, remainingHidden, isExpanded }
+    return {
+      topLines,
+      bottomLines,
+      remainingHidden,
+      hiddenStart: gap.gapStart + effectiveDown,
+      hiddenEnd: effectiveGapEnd - effectiveUp,
+      isExpanded,
+    }
   }, [gapExpansions, fullLineMap, fullDiffMaxLine])
 
   const getGapBeforeHunk = useCallback((hunkIndex: number): GapInfo | undefined => {
@@ -551,6 +577,11 @@ function FileDiff({
     const inlineComment = activeComment && onSubmitComment && onCancelComment
       ? { activeComment, onSubmitComment, onCancelComment, originalLines: activeCommentOriginalLines }
       : null
+    // Root comments anchored on lines still hidden in this gap (line <= 0 is
+    // file-level or a removed-line anchor, both of which live elsewhere).
+    const hiddenCommentCount = gapData.remainingHidden > 0
+      ? fileComments.filter(c => !c.parentId && c.lineEnd > 0 && c.lineEnd >= gapData.hiddenStart && c.lineEnd <= gapData.hiddenEnd).length
+      : 0
 
     const renderLines = (lines: DiffLineType[], keyPrefix: string): React.ReactNode =>
       isSplit
@@ -563,6 +594,7 @@ function FileDiff({
         <GapRow
           gap={gap}
           gapData={gapData}
+          hiddenCommentCount={hiddenCommentCount}
           isLoading={isLoadingFull}
           onExpandDown={() => { handleExpand(gap.key, 'down') }}
           onExpandUp={() => { handleExpand(gap.key, 'up') }}
@@ -573,7 +605,7 @@ function FileDiff({
         {gapData.bottomLines.length > 0 && renderLines(gapData.bottomLines, `gap-${gap.key}-bottom`)}
       </React.Fragment>
     )
-  }, [getGapRenderData, renderExpandedLinesUnified, splitLineRenderer, onDeleteComment, onUpdateComment, onAddReply, onResolveComment, onReopenComment, activeComment, onSubmitComment, onCancelComment, isLoadingFull, handleExpand, handleExpandAll, handleCollapse, activeCommentOriginalLines])
+  }, [getGapRenderData, fileComments, renderExpandedLinesUnified, splitLineRenderer, onDeleteComment, onUpdateComment, onAddReply, onResolveComment, onReopenComment, activeComment, onSubmitComment, onCancelComment, isLoadingFull, handleExpand, handleExpandAll, handleCollapse, activeCommentOriginalLines])
 
   return (
     <div id={`file-${file.path.replace(/\//g, '-')}`} className="mx-3 mb-3 first:mt-3">
