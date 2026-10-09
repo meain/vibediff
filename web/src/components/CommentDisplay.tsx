@@ -221,8 +221,11 @@ function CommentCard({ comment, isReply, parentResolved, replyCount, repliesColl
     ? 'border-l-info'
     : 'border-l-accent'
   let authorLabel = 'User'
+  let authorBadgeClass = 'bg-accent/20 text-accent'
   if (isAgent) {
     authorLabel = comment.authorName ? `agent:${comment.authorName}` : 'Agent'
+    // Agents that didn't identify themselves (no authorName) get a neutral grey badge.
+    authorBadgeClass = comment.authorName ? 'bg-info/20 text-info' : 'bg-fg-subtle/20 text-fg-muted'
   }
   const rootClass = isReply
     ? `ml-6 mt-1 bg-surface border border-edge rounded-lg ${dimmed ? 'opacity-60' : ''}`
@@ -233,11 +236,6 @@ function CommentCard({ comment, isReply, parentResolved, replyCount, repliesColl
       <div className="flex items-center justify-between pl-0 pr-1.5 py-0.5 bg-surface-raised gap-2 rounded-t-lg">
         <div className="text-xs text-fg-muted flex items-center gap-1.5 flex-wrap">
           <CommentMenu commentId={comment.id} />
-          <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide ${
-            isAgent ? 'bg-info/20 text-info' : 'bg-accent/20 text-accent'
-          }`}>
-            {authorLabel}
-          </span>
           {!isReply && (
             <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide ${
               isResolved ? 'bg-fg-subtle/20 text-fg-muted' : 'bg-success/20 text-success'
@@ -245,6 +243,9 @@ function CommentCard({ comment, isReply, parentResolved, replyCount, repliesColl
               {comment.status}
             </span>
           )}
+          <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide ${authorBadgeClass}`}>
+            {authorLabel}
+          </span>
           <span className="text-fg-subtle">·</span>
           <span className="text-fg-subtle" title={new Date(comment.createdAt).toLocaleString()}>{formatRelativeTime(comment.createdAt)}</span>
           {!isReply && replyCount !== undefined && replyCount > 0 && (
