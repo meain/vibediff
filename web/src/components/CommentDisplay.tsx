@@ -1,10 +1,25 @@
 import { useState, useRef, useEffect } from 'react'
 import type { Comment } from '../types/diff'
 import { formatRelativeTime } from '../utils/time'
+import {
+  ArrowPathIcon,
+  ArrowUturnLeftIcon,
+  CheckIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
+  EllipsisHorizontalIcon,
+  HandThumbDownIcon,
+  HandThumbUpIcon,
+  PencilSquareIcon,
+  XMarkIcon,
+} from '@heroicons/react/24/outline'
+import { HandThumbDownIcon as HandThumbDownSolid, HandThumbUpIcon as HandThumbUpSolid } from '@heroicons/react/24/solid'
 import CopyButton from './CopyButton'
 import { useCommentReaction } from '../contexts/CommentReactionContext'
 import { groupIntoThreads } from '../utils/threads'
 import { parseCommentSegments, pairLinesForDiff, type DiffToken, type PairedLine } from '../utils/suggestions'
+
+const ICON_BTN = 'inline-flex items-center justify-center p-1 rounded transition-colors cursor-pointer border-none bg-transparent'
 
 interface CommentDisplayProps {
   comments: Comment[]
@@ -122,12 +137,12 @@ function CommentMenu({ commentId }: { commentId: string }): React.ReactElement {
     <div ref={ref} className="relative">
       <button
         onClick={() => { setOpen(o => !o) }}
-        className="text-fg-subtle hover:text-fg text-lg px-2 py-0 rounded hover:bg-surface-inset transition-colors cursor-pointer border-none bg-transparent leading-none"
+        className={`${ICON_BTN} text-fg-subtle hover:text-fg hover:bg-surface-inset`}
         title="More"
         aria-haspopup="menu"
         aria-expanded={open}
       >
-        ⋯
+        <EllipsisHorizontalIcon className="w-4 h-4" />
       </button>
       {open && (
         <div role="menu" className="absolute right-0 top-full mt-1 z-20 min-w-40 px-3 py-2 bg-surface border border-edge rounded-md shadow-lg text-xs">
@@ -213,7 +228,7 @@ function CommentCard({ comment, isReply, parentResolved, replyCount, repliesColl
     : `bg-surface border border-edge rounded-lg border-l-[3px] ${accentClass} ${dimmed ? 'opacity-60' : ''}`
 
   return (
-    <div data-comment-id={comment.id} className={rootClass}>
+    <div data-comment-id={comment.id} className={`group ${rootClass}`}>
       <div className="flex items-center justify-between px-3 py-1.5 bg-surface-raised gap-2 rounded-t-lg">
         <div className="text-xs text-fg-muted flex items-center gap-1.5 flex-wrap">
           <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide ${
@@ -233,10 +248,11 @@ function CommentCard({ comment, isReply, parentResolved, replyCount, repliesColl
           {!isReply && replyCount !== undefined && replyCount > 0 && (
             <button
               onClick={onToggleReplies}
-              className="text-fg-subtle hover:text-fg text-[10px] px-1.5 py-0.5 rounded hover:bg-surface-inset transition-colors cursor-pointer border-none bg-transparent"
+              className="inline-flex items-center gap-0.5 text-fg-subtle hover:text-fg text-[10px] pl-0.5 pr-1.5 py-0.5 rounded hover:bg-surface-inset transition-colors cursor-pointer border-none bg-transparent"
               title={repliesCollapsed ? 'Show replies' : 'Hide replies'}
             >
-              {repliesCollapsed ? `▸ ${String(replyCount)}` : `▾ ${String(replyCount)}`}
+              {repliesCollapsed ? <ChevronRightIcon className="w-3 h-3" /> : <ChevronDownIcon className="w-3 h-3" />}
+              {String(replyCount)}
             </button>
           )}
         </div>
@@ -244,63 +260,71 @@ function CommentCard({ comment, isReply, parentResolved, replyCount, repliesColl
           {onReact && !editing && (['up', 'down'] as const).map(kind => {
             const active = comment.reaction === kind
             const activeClass = kind === 'up' ? 'text-success bg-success/10' : 'text-danger bg-danger/10'
+            const icons = {
+              up: { outline: HandThumbUpIcon, solid: HandThumbUpSolid },
+              down: { outline: HandThumbDownIcon, solid: HandThumbDownSolid },
+            }[kind]
+            const Icon = active ? icons.solid : icons.outline
             return (
               <button
                 key={kind}
                 onClick={() => { void onReact(comment.id, active ? '' : kind) }}
-                className={`text-sm px-2 py-0.5 rounded transition-colors cursor-pointer border-none ${
-                  active ? activeClass : 'text-fg-subtle hover:text-fg hover:bg-surface-inset bg-transparent'
+                // Hidden until the card is hovered/focused; an active reaction stays visible.
+                className={`${ICON_BTN} ${
+                  active
+                    ? activeClass
+                    : 'text-fg-subtle hover:text-fg hover:bg-surface-inset opacity-0 group-hover:opacity-100 focus-visible:opacity-100'
                 }`}
                 title={kind === 'up' ? 'Thumbs up' : 'Thumbs down'}
                 aria-pressed={active}
               >
-                {kind === 'up' ? '👍' : '👎'}
+                <Icon className="w-4 h-4" />
               </button>
             )
           })}
           {canEdit && !editing && (
             <button
               onClick={() => { setEditing(true); }}
-              className="text-fg-subtle hover:text-fg text-lg px-2 py-0 rounded hover:bg-surface-inset transition-colors cursor-pointer border-none bg-transparent"
+              className={`${ICON_BTN} text-fg-subtle hover:text-fg hover:bg-surface-inset`}
               title="Edit comment"
             >
-              ✎
+              <PencilSquareIcon className="w-4 h-4" />
             </button>
           )}
           {onStartReply && !editing && (
             <button
               onClick={onStartReply}
-              className="text-fg-subtle hover:text-fg text-lg px-2 py-0 rounded hover:bg-surface-inset transition-colors cursor-pointer border-none bg-transparent"
+              className={`${ICON_BTN} text-fg-subtle hover:text-fg hover:bg-surface-inset`}
               title="Reply"
             >
-              ↩
+              <ArrowUturnLeftIcon className="w-4 h-4" />
             </button>
           )}
           {!editing && !isReply && onResolve && !isResolved && (
             <button
               onClick={() => { onResolve(comment.id); }}
-              className="text-fg-subtle hover:text-success text-lg px-2 py-0 rounded hover:bg-success/10 transition-colors cursor-pointer border-none bg-transparent"
+              className={`${ICON_BTN} text-fg-subtle hover:text-success hover:bg-success/10`}
               title="Resolve thread"
             >
-              ✓
+              <CheckIcon className="w-4 h-4" />
             </button>
           )}
           {!editing && !isReply && onReopen && isResolved && (
             <button
               onClick={() => { onReopen(comment.id); }}
-              className="text-fg-subtle hover:text-accent text-lg px-2 py-0 rounded hover:bg-accent/10 transition-colors cursor-pointer border-none bg-transparent"
+              className={`${ICON_BTN} text-fg-subtle hover:text-accent hover:bg-accent/10`}
               title="Reopen thread"
             >
-              ↺
+              <ArrowPathIcon className="w-4 h-4" />
             </button>
           )}
           {!editing && (
             <button
               onClick={() => { onDelete(comment.id); }}
-              className="text-fg-subtle hover:text-danger text-lg px-2 py-0 rounded hover:bg-danger/10 transition-colors cursor-pointer border-none bg-transparent"
+              className={`${ICON_BTN} text-fg-subtle hover:text-danger hover:bg-danger/10`}
               title="Delete comment"
             >
-              ×
+              <XMarkIcon className="w-4 h-4" />
             </button>
           )}
           <CommentMenu commentId={comment.id} />
