@@ -7,7 +7,7 @@ import {
   CheckIcon,
   ChevronDownIcon,
   ChevronRightIcon,
-  EllipsisHorizontalIcon,
+  EllipsisVerticalIcon,
   HandThumbDownIcon,
   HandThumbUpIcon,
   PencilSquareIcon,
@@ -19,7 +19,7 @@ import { useCommentReaction } from '../contexts/CommentReactionContext'
 import { groupIntoThreads } from '../utils/threads'
 import { parseCommentSegments, pairLinesForDiff, type DiffToken, type PairedLine } from '../utils/suggestions'
 
-const ICON_BTN = 'inline-flex items-center justify-center p-1 rounded transition-colors cursor-pointer border-none bg-transparent'
+const ICON_BTN = 'inline-flex items-center justify-center px-1.5 py-0.5 rounded transition-colors cursor-pointer border-none bg-transparent'
 
 interface CommentDisplayProps {
   comments: Comment[]
@@ -134,18 +134,19 @@ function CommentMenu({ commentId }: { commentId: string }): React.ReactElement {
   }, [open])
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className="relative flex items-center">
       <button
         onClick={() => { setOpen(o => !o) }}
-        className={`${ICON_BTN} text-fg-subtle hover:text-fg hover:bg-surface-inset`}
+        className="flex items-center justify-center p-0 rounded transition-colors cursor-pointer border-none bg-transparent text-fg-subtle hover:text-fg hover:bg-surface-inset"
         title="More"
         aria-haspopup="menu"
         aria-expanded={open}
       >
-        <EllipsisHorizontalIcon className="w-4 h-4" />
+        {/* The glyph only fills the middle of its 16px box; negative margins trim the dead space. */}
+        <EllipsisVerticalIcon className="w-4 h-4 -mx-1" />
       </button>
       {open && (
-        <div role="menu" className="absolute right-0 top-full mt-1 z-20 min-w-40 px-3 py-2 bg-surface border border-edge rounded-md shadow-lg text-xs">
+        <div role="menu" className="absolute left-0 top-full mt-1 z-20 min-w-40 px-3 py-2 bg-surface border border-edge rounded-md shadow-lg text-xs">
           <div className="text-fg-subtle mb-0.5">Comment ID</div>
           <div className="flex items-center gap-1.5">
             <span className="font-mono text-fg select-all">{commentId}</span>
@@ -229,8 +230,9 @@ function CommentCard({ comment, isReply, parentResolved, replyCount, repliesColl
 
   return (
     <div data-comment-id={comment.id} className={`group ${rootClass}`}>
-      <div className="flex items-center justify-between px-3 py-1.5 bg-surface-raised gap-2 rounded-t-lg">
+      <div className="flex items-center justify-between pl-0 pr-1.5 py-0.5 bg-surface-raised gap-2 rounded-t-lg">
         <div className="text-xs text-fg-muted flex items-center gap-1.5 flex-wrap">
+          <CommentMenu commentId={comment.id} />
           <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide ${
             isAgent ? 'bg-info/20 text-info' : 'bg-accent/20 text-accent'
           }`}>
@@ -256,7 +258,7 @@ function CommentCard({ comment, isReply, parentResolved, replyCount, repliesColl
             </button>
           )}
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5">
           {onReact && !editing && (['up', 'down'] as const).map(kind => {
             const active = comment.reaction === kind
             const activeClass = kind === 'up' ? 'text-success bg-success/10' : 'text-danger bg-danger/10'
@@ -327,7 +329,6 @@ function CommentCard({ comment, isReply, parentResolved, replyCount, repliesColl
               <XMarkIcon className="w-4 h-4" />
             </button>
           )}
-          <CommentMenu commentId={comment.id} />
         </div>
       </div>
       {editing ? (
@@ -360,7 +361,7 @@ function CommentCard({ comment, isReply, parentResolved, replyCount, repliesColl
           </div>
         </div>
       ) : (
-        <div className="px-3 py-2 text-sm leading-relaxed text-fg">
+        <div className="px-2 py-1 text-sm leading-relaxed text-fg">
           <CommentBody comment={comment} />
         </div>
       )}
