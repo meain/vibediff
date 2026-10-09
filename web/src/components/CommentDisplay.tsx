@@ -134,7 +134,7 @@ function CommentMenu({ commentId }: { commentId: string }): React.ReactElement {
   }, [open])
 
   return (
-    <div ref={ref} className="relative flex items-center">
+    <div ref={ref} className="relative flex items-center ml-[5px]">
       <button
         onClick={() => { setOpen(o => !o) }}
         className="flex items-center justify-center p-0 rounded transition-colors cursor-pointer border-none bg-transparent text-fg-subtle hover:text-fg hover:bg-surface-inset"
