@@ -373,11 +373,24 @@ export default function CommentDisplay({ comments, onDelete, onUpdate, onAddRepl
   const [replyingToId, setReplyingToId] = useState<string | null>(null)
   const [replyDraft, setReplyDraft] = useState('')
   const [replySaving, setReplySaving] = useState(false)
-  const [collapsedThreads, setCollapsedThreads] = useState<Set<string>>(new Set())
+  // Threads the user flipped away from the default fold state (open threads
+  // default to expanded, resolved threads to collapsed).
+  const [toggledThreads, setToggledThreads] = useState<Set<string>>(new Set())
   const replyRef = useRef<HTMLTextAreaElement>(null)
 
+  // Resolving/reopening drops any manual fold choice so the thread takes the
+  // default for its new status (resolved folds, open expands).
+  const resetThreadFold = (id: string): void => {
+    setToggledThreads(prev => {
+      if (!prev.has(id)) return prev
+      const next = new Set(prev)
+      next.delete(id)
+      return next
+    })
+  }
+
   const toggleThread = (id: string): void => {
-    setCollapsedThreads(prev => {
+    setToggledThreads(prev => {
       const next = new Set(prev)
       if (next.has(id)) { next.delete(id) } else { next.add(id) }
       return next
@@ -420,8 +433,8 @@ export default function CommentDisplay({ comments, onDelete, onUpdate, onAddRepl
   return (
     <div className="mx-4 my-2 space-y-2 max-w-2xl">
       {threads.map(thread => {
-        const isCollapsed = collapsedThreads.has(thread.root.id)
         const isResolved = thread.root.status === 'resolved'
+        const isCollapsed = isResolved !== toggledThreads.has(thread.root.id)
         return (
         <div key={thread.root.id}>
           <CommentCard
@@ -432,8 +445,8 @@ export default function CommentDisplay({ comments, onDelete, onUpdate, onAddRepl
             onDelete={onDelete}
             onUpdate={onUpdate}
             onStartReply={onAddReply ? () => { setReplyingToId(thread.root.id); setReplyDraft(''); } : undefined}
-            onResolve={onResolve}
-            onReopen={onReopen}
+            onResolve={onResolve ? (id) => { resetThreadFold(id); onResolve(id) } : undefined}
+            onReopen={onReopen ? (id) => { resetThreadFold(id); onReopen(id) } : undefined}
           />
           {!isCollapsed && thread.replies.map(reply => (
             <CommentCard
