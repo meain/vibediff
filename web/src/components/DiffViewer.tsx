@@ -35,6 +35,7 @@ import {
   ChevronUpIcon,
   ChevronDownIcon,
   ArrowsPointingOutIcon,
+  ChatBubbleLeftRightIcon,
 } from '@heroicons/react/24/outline'
 import { Group, Panel, Separator } from 'react-resizable-panels'
 import FileList from './FileList'
@@ -44,6 +45,7 @@ import HelpModal from './HelpModal'
 import SettingsPanel from './SettingsPanel'
 import DirectorySwitcher from './DirectorySwitcher'
 import RevisionList from './RevisionList'
+import CommentList from './CommentList'
 import CommitSummary from './CommitSummary'
 import Toast from './Toast'
 import OutsideDiffComments from './OutsideDiffComments'
@@ -83,6 +85,8 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
   const [copyFeedback, setCopyFeedback] = useState(false)
   const [copyAllFeedback, setCopyAllFeedback] = useState(false)
   const [showComments, setShowComments] = useState(true)
+  const [showCommentBrowser, setShowCommentBrowser] = useState<boolean>(() => localStorage.getItem('showCommentBrowser') !== 'false')
+  const [pendingCommentId, setPendingCommentId] = useState<string | null>(null)
   const { lastUpdate, lastUpdateDir } = useWebSocketUpdates()
   const { comments, addComment, updateComment, deleteComment, resolveComment, reopenComment, reactToComment, getCommentsForLine, getCommentRangeLines, formatCommentsForExport, formatPendingCommentsForExport, clearComments, fetchError, clearFetchError } = useComments(currentDirectory, selectedRevision)
   const { reviewedFiles, toggleReviewed, clearReviewed, validateReviewed } = useReviewedFiles(currentDirectory, selectedRevision)
@@ -253,6 +257,30 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
   useLocalStorage('sidebarView', fileViewMode)
   useLocalStorage('collapsedFolders', collapsedFolders)
   useLocalStorage('wrapLines', wrapLines)
+  useLocalStorage('showCommentBrowser', showCommentBrowser)
+
+  const handleSelectComment = useCallback((comment: Comment): void => {
+    const file = data?.files.find(f => f.path === comment.file)
+    setShowComments(true)
+    if (file) {
+      setSelectedFile(file)
+      setCollapsedFiles(prev => {
+        if (!prev.has(file.path)) return prev
+        const next = new Set(prev)
+        next.delete(file.path)
+        return next
+      })
+    }
+    setPendingCommentId(comment.id)
+  }, [data])
+
+  // Scroll to the comment picked in the comment browser once its file has rendered.
+  useEffect(() => {
+    if (pendingCommentId === null) return
+    const el = document.querySelector(`[data-comment-id="${pendingCommentId}"]`)
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    setPendingCommentId(null)
+  }, [pendingCommentId, selectedFile, collapsedFiles])
 
   // Content fingerprint for the revision currently being viewed. jj revisions
   // carry a commit id that changes on amend/snapshot; git's synthetic
@@ -809,6 +837,13 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
       action: () => { setShowComments(v => !v); },
     })
     items.push({
+      id: 'toggle-comment-browser',
+      section: 'Settings',
+      label: showCommentBrowser ? 'Hide comment browser' : 'Show comment browser',
+      icon: <ChatBubbleLeftRightIcon />,
+      action: () => { setShowCommentBrowser(v => !v); },
+    })
+    items.push({
       id: 'toggle-dark-mode',
       section: 'Settings',
       label: 'Toggle light/dark mode',
@@ -833,7 +868,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
 
     return items
   }, [
-    wrapLines, viewMode, displayMode, allFilesCollapsed, toggleAllCollapse, fileViewMode, showComments,
+    wrapLines, viewMode, displayMode, allFilesCollapsed, toggleAllCollapse, fileViewMode, showComments, showCommentBrowser,
     isDark, toggleDark, backend, selectedRevision, diffType, pendingThreads, comments.length,
     formatPendingCommentsForExport, revisions, formatCommentsForExport, handleClearComments,
     handleClearReviewed, selectedFile, reviewedFiles, handleToggleReviewed, goToOlderCommit,
@@ -959,6 +994,8 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
             <SettingsPanel
               showComments={showComments}
               onToggleComments={() => { setShowComments(v => !v); }}
+              showCommentBrowser={showCommentBrowser}
+              onToggleCommentBrowser={() => { setShowCommentBrowser(v => !v); }}
               onCopyAllComments={() => {
                 void navigator.clipboard.writeText(formatCommentsForExport(revisions)).then(() => {
                   setCopyAllFeedback(true)
@@ -987,8 +1024,8 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
         {/* Sidebar */}
         <Panel defaultSize={20} minSize={15} maxSize={600} id="sidebar">
           <Group orientation="vertical" className="h-full" id="sidebar-group">
-            <Panel defaultSize={60} minSize={20} id="file-panel">
-              <div className="h-full bg-surface-raised border-r border-edge flex flex-col">
+            <Panel defaultSize={showCommentBrowser ? 40 : 60} minSize={20} id="file-panel">
+              <div className="h-full bg-section-files border-r border-edge flex flex-col">
                 <DirectorySwitcher
                   currentDirectory={currentDirectory}
                   directories={directories}
@@ -1052,8 +1089,23 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
               data-separator="resize-handle"
             />
 
-            <Panel defaultSize={40} minSize={15} id="revision-panel">
-              <div className="h-full bg-surface-raised border-r border-edge flex flex-col">
+            {showCommentBrowser && (
+              <>
+                <Panel defaultSize={25} minSize={10} id="comment-panel">
+                  <div className="h-full bg-section-comments border-r border-edge flex flex-col">
+                    <CommentList comments={comments} onSelectComment={handleSelectComment} />
+                  </div>
+                </Panel>
+
+                <Separator
+                  className="h-1.5 bg-edge hover:bg-accent transition-colors"
+                  data-separator="resize-handle"
+                />
+              </>
+            )}
+
+            <Panel defaultSize={showCommentBrowser ? 35 : 40} minSize={15} id="revision-panel">
+              <div className="h-full bg-section-revisions border-r border-edge flex flex-col">
                 <RevisionList
                   revisions={revisions}
                   loading={revisionsLoading}

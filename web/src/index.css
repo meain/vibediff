@@ -49,6 +49,10 @@
   --c-commented-num-bg: rgba(59, 130, 246, 0.18);
 
   --c-hover-line: rgba(0, 0, 0, 0.03);
+
+  --c-section-files: #f6f9fd;
+  --c-section-comments: #fdfaf5;
+  --c-section-revisions: #f6faf8;
 }
 
 .dark {
@@ -95,6 +99,10 @@
   --c-commented-num-bg: rgba(59, 130, 246, 0.18);
 
   --c-hover-line: rgba(255, 255, 255, 0.03);
+
+  --c-section-files: #0e1729;
+  --c-section-comments: #15130f;
+  --c-section-revisions: #0e1819;
 }
 
 /* Tailwind theme tokens — reference the CSS vars so utilities auto-adapt to dark mode */
@@ -119,6 +127,10 @@
   --color-accent-fg: var(--c-accent-fg);
   --color-accent-muted: var(--c-accent-muted);
   --color-accent-emphasis: var(--c-accent-emphasis);
+
+  --color-section-files: var(--c-section-files);
+  --color-section-comments: var(--c-section-comments);
+  --color-section-revisions: var(--c-section-revisions);
 
   --color-success: var(--c-success);
   --color-danger: var(--c-danger);

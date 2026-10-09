@@ -15,11 +15,14 @@ import {
   UserIcon,
   SparklesIcon,
   QuestionMarkCircleIcon,
+  ChatBubbleLeftRightIcon,
 } from '@heroicons/react/24/outline'
 
 interface SettingsPanelProps {
   showComments: boolean
   onToggleComments: () => void
+  showCommentBrowser: boolean
+  onToggleCommentBrowser: () => void
   onCopyAllComments: () => void
   copyAllFeedback: boolean
   hasComments: boolean
@@ -38,6 +41,8 @@ interface SettingsPanelProps {
 export default function SettingsPanel({
   showComments,
   onToggleComments,
+  showCommentBrowser,
+  onToggleCommentBrowser,
   onCopyAllComments,
   copyAllFeedback,
   hasComments,
@@ -76,7 +81,7 @@ export default function SettingsPanel({
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-1 w-48 bg-surface border border-edge rounded-md shadow-lg z-50 py-1 text-fg">
+        <div className="absolute right-0 top-full mt-1 w-56 bg-surface border border-edge rounded-md shadow-lg z-50 py-1 text-fg">
 
           {/* Comments */}
           <div className="px-3 py-2 bg-surface-inset/60 border-b border-edge mb-1">
@@ -145,6 +150,12 @@ export default function SettingsPanel({
               <EyeIcon className="w-3.5 h-3.5 shrink-0" />
             )}
             <span>{showComments ? 'Hide comments' : 'Show comments'}</span>
+          </button>
+
+          {/* Comment browser */}
+          <button className={itemClass} onClick={() => { onToggleCommentBrowser(); }}>
+            <ChatBubbleLeftRightIcon className="w-3.5 h-3.5 shrink-0" />
+            <span>{showCommentBrowser ? 'Hide comment browser' : 'Show comment browser'}</span>
           </button>
 
           {/* Copy all comments */}
