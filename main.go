@@ -143,6 +143,7 @@ func main() {
 	r.HandleFunc("/api/review/comments", handler.ClearAllComments).Methods("DELETE")
 	r.HandleFunc("/api/review/comment/{id}/resolve", handler.ResolveComment).Methods("POST")
 	r.HandleFunc("/api/review/comment/{id}/reopen", handler.ReopenComment).Methods("POST")
+	r.HandleFunc("/api/review/comment/{id}/reaction", handler.ReactToComment).Methods("POST")
 
 	r.HandleFunc("/docs", handler.ServeDocsPage).Methods("GET")
 

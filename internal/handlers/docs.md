@@ -160,6 +160,17 @@ Mark a comment thread as resolved.
 
 Reopen a resolved comment.
 
+### `POST /api/review/comment/{id}/reaction`
+
+Set a thumbs up/down on a comment, or clear it.
+
+```json
+{ "reaction": "up" }
+```
+
+`reaction` is `"up"`, `"down"`, or `""` (clear). It appears as `reaction` on
+the Comment object.
+
 ### `DELETE /api/review/comment/{id}`
 
 Delete a comment thread and all its replies.

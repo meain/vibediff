@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import type { Comment } from '../types/diff'
 import { formatRelativeTime } from '../utils/time'
+import { useCommentReaction } from '../contexts/CommentReactionContext'
 import { groupIntoThreads } from '../utils/threads'
 import { parseCommentSegments, pairLinesForDiff, type DiffToken, type PairedLine } from '../utils/suggestions'
 
@@ -114,6 +115,7 @@ function CommentCard({ comment, isReply, parentResolved, replyCount, repliesColl
   const [draft, setDraft] = useState(comment.content)
   const [saving, setSaving] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const onReact = useCommentReaction()
 
   useEffect(() => {
     if (editing) {
@@ -201,6 +203,23 @@ function CommentCard({ comment, isReply, parentResolved, replyCount, repliesColl
           )}
         </div>
         <div className="flex items-center gap-1">
+          {onReact && !editing && (['up', 'down'] as const).map(kind => {
+            const active = comment.reaction === kind
+            const activeClass = kind === 'up' ? 'text-success bg-success/10' : 'text-danger bg-danger/10'
+            return (
+              <button
+                key={kind}
+                onClick={() => { void onReact(comment.id, active ? '' : kind) }}
+                className={`text-sm px-2 py-0.5 rounded transition-colors cursor-pointer border-none ${
+                  active ? activeClass : 'text-fg-subtle hover:text-fg hover:bg-surface-inset bg-transparent'
+                }`}
+                title={kind === 'up' ? 'Thumbs up' : 'Thumbs down'}
+                aria-pressed={active}
+              >
+                {kind === 'up' ? '👍' : '👎'}
+              </button>
+            )
+          })}
           {canEdit && !editing && (
             <button
               onClick={() => { setEditing(true); }}

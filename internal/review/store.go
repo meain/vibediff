@@ -22,6 +22,13 @@ const (
 	StatusResolved = "resolved"
 )
 
+// ReactionUp and ReactionDown enumerate Comment.Reaction values (thumbs
+// up/down feedback on a comment, typically an agent's). Empty means none.
+const (
+	ReactionUp   = "up"
+	ReactionDown = "down"
+)
+
 // Comment is a review note anchored to a file, line range, and (optionally)
 // a specific revision. Revision/Commit pin the point-in-time the user was
 // looking at when the comment was created so consumers can render the
@@ -46,7 +53,8 @@ type Comment struct {
 	AuthorName      string    `json:"authorName,omitempty"`
 	ParentID        string    `json:"parentId,omitempty"`
 	Status          string    `json:"status"`
-	Revision        string    `json:"revision,omitempty"`
+	Reaction        string    `json:"reaction,omitempty"`
+	Revision       string    `json:"revision,omitempty"`
 	Commit          string    `json:"commit,omitempty"`
 	CreatedAt       time.Time `json:"createdAt"`
 }
@@ -209,6 +217,19 @@ func (s *Store) UpdateContent(id, content string) bool {
 		return false
 	}
 	c.Content = content
+	return true
+}
+
+// SetReaction sets a comment's reaction (ReactionUp, ReactionDown, or "" to
+// clear). Returns false if the comment was not found.
+func (s *Store) SetReaction(id, reaction string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	c, ok := s.comments[id]
+	if !ok {
+		return false
+	}
+	c.Reaction = reaction
 	return true
 }
 

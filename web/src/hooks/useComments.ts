@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useContext, useMemo } from 'react'
-import type { Comment, Revision } from '../types/diff'
+import type { Comment, CommentReaction, Revision } from '../types/diff'
 import { WebSocketContext } from '../contexts/WebSocketContext'
 import { groupIntoThreads } from '../utils/threads'
 import { parseCommentSegments, formatSuggestionExportHunk } from '../utils/suggestions'
@@ -42,6 +42,7 @@ interface UseCommentsReturn {
   deleteComment: (id: string) => Promise<void>
   resolveComment: (id: string) => Promise<void>
   reopenComment: (id: string) => Promise<void>
+  reactToComment: (id: string, reaction: CommentReaction) => Promise<void>
   getCommentsForLine: (file: string, line: number) => Comment[]
   getCommentRangeLines: (file: string, lineOrder: number[]) => Set<number>
   formatCommentsForExport: (revisions?: Revision[]) => string
@@ -158,6 +159,18 @@ export function useComments(currentDirectory?: string, selectedRevision?: string
       throw new Error('Failed to reopen comment')
     }
     setLocalStatus(id, 'open')
+  }, [])
+
+  const reactToComment = useCallback(async (id: string, reaction: CommentReaction) => {
+    const response = await fetch(`/api/review/comment/${id}/reaction`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reaction })
+    })
+    if (!response.ok) {
+      throw new Error('Failed to react to comment')
+    }
+    setComments(prev => prev.map(c => c.id === id ? { ...c, reaction } : c))
   }, [])
 
   const deleteComment = useCallback(async (id: string) => {
@@ -358,6 +371,7 @@ export function useComments(currentDirectory?: string, selectedRevision?: string
     deleteComment,
     resolveComment,
     reopenComment,
+    reactToComment,
     getCommentsForLine,
     getCommentRangeLines,
     formatCommentsForExport,

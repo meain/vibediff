@@ -393,6 +393,35 @@ func (h *Handler) ResolveComment(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// ReactToComment sets or clears the thumbs up/down reaction on a comment.
+// Body: {"reaction": "up" | "down" | ""}.
+func (h *Handler) ReactToComment(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Reaction string `json:"reaction"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if body.Reaction != "" && body.Reaction != review.ReactionUp && body.Reaction != review.ReactionDown {
+		http.Error(w, fmt.Sprintf("reaction must be %q, %q, or empty", review.ReactionUp, review.ReactionDown), http.StatusBadRequest)
+		return
+	}
+	id := mux.Vars(r)["id"]
+	c := h.reviewStore.GetByID(id)
+	if c == nil {
+		http.Error(w, "Comment not found", http.StatusNotFound)
+		return
+	}
+	dir := c.Directory
+	if !h.reviewStore.SetReaction(id, body.Reaction) {
+		http.Error(w, "Comment not found", http.StatusNotFound)
+		return
+	}
+	_ = h.reviewStore.SaveComments(dir)
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // ReopenComment transitions a comment back to open.
 func (h *Handler) ReopenComment(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)

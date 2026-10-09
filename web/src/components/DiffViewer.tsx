@@ -46,6 +46,7 @@ import DirectorySwitcher from './DirectorySwitcher'
 import RevisionList from './RevisionList'
 import CommitSummary from './CommitSummary'
 import Toast from './Toast'
+import { CommentReactionContext } from '../contexts/CommentReactionContext'
 import CommandPalette, { type CommandItem } from './CommandPalette'
 
 interface DiffViewerProps {
@@ -82,7 +83,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
   const [copyAllFeedback, setCopyAllFeedback] = useState(false)
   const [showComments, setShowComments] = useState(true)
   const { lastUpdate, lastUpdateDir } = useWebSocketUpdates()
-  const { comments, addComment, updateComment, deleteComment, resolveComment, reopenComment, getCommentsForLine, getCommentRangeLines, formatCommentsForExport, formatPendingCommentsForExport, clearComments, fetchError, clearFetchError } = useComments(currentDirectory, selectedRevision)
+  const { comments, addComment, updateComment, deleteComment, resolveComment, reopenComment, reactToComment, getCommentsForLine, getCommentRangeLines, formatCommentsForExport, formatPendingCommentsForExport, clearComments, fetchError, clearFetchError } = useComments(currentDirectory, selectedRevision)
   const { reviewedFiles, toggleReviewed, clearReviewed, validateReviewed } = useReviewedFiles(currentDirectory, selectedRevision)
   const totalThreads = comments.filter(c => !c.parentId).length
   const pendingThreads = comments.filter(c => !c.parentId && c.status === 'open').length
@@ -832,7 +833,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
   }
 
   return (
-    <>
+    <CommentReactionContext.Provider value={reactToComment}>
       <div className={`flex flex-col h-screen bg-surface ${viewMode === 'split' ? 'split-view-active' : ''}`}>
       {/* Header */}
       <header className="bg-surface-raised border-b border-edge">
@@ -1217,6 +1218,6 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
       {directoryAddError !== null && (
         <Toast message={directoryAddError} onDismiss={() => { setDirectoryAddError(null); }} type="error" />
       )}
-    </>
+    </CommentReactionContext.Provider>
   )
 }
