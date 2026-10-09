@@ -46,6 +46,7 @@ import DirectorySwitcher from './DirectorySwitcher'
 import RevisionList from './RevisionList'
 import CommitSummary from './CommitSummary'
 import Toast from './Toast'
+import OutsideDiffComments from './OutsideDiffComments'
 import { CommentReactionContext } from '../contexts/CommentReactionContext'
 import CommandPalette, { type CommandItem } from './CommandPalette'
 
@@ -130,6 +131,14 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
     }
     return byFile
   }, [comments, showComments])
+
+  // Comments on files absent from the current diff (e.g. an agent commented on
+  // an untouched file); shown in a section at the bottom so they aren't lost.
+  const outsideDiffComments = useMemo(() => {
+    if (!showComments || !data) return []
+    const inDiff = new Set(data.files.map(f => f.path))
+    return comments.filter(c => !inDiff.has(c.file))
+  }, [comments, showComments, data])
 
   const getCommentsForLineGated = useCallback(
     (file: string, line: number) => showComments ? getCommentsForLine(file, line) : [],
@@ -1096,7 +1105,7 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
           }
           if (!data || data.files.length === 0) {
             return (
-              <div className="flex items-center justify-center h-full">
+              <div className="flex items-center justify-center py-16">
                 <p className="text-sm text-fg-subtle">No changes to display</p>
               </div>
             )
@@ -1177,11 +1186,19 @@ export default function DiffViewer({ className = '' }: DiffViewerProps): React.R
             )
           }
           return (
-            <div className="flex items-center justify-center h-full">
+            <div className="flex items-center justify-center py-16">
               <p className="text-sm text-fg-subtle">Select a file to view changes</p>
             </div>
           )
         })()}
+        <OutsideDiffComments
+          comments={outsideDiffComments}
+          onDelete={deleteComment}
+          onUpdate={updateComment}
+          onAddReply={async (parent, content) => { await addComment(parent.file, parent.line, content, parent.lineEnd, parent.id) }}
+          onResolve={resolveComment}
+          onReopen={reopenComment}
+        />
           </div>
         </Panel>
       </Group>
