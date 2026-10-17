@@ -2,7 +2,7 @@
 
 ## Prebuilt binaries
 
-Each tagged release publishes binaries for Linux, macOS and Windows (amd64 and arm64) with a `checksums.txt`, on the [releases page](https://github.com/meain/vibediff/releases).
+Each tagged release publishes binaries for Linux and macOS (amd64 and arm64) with a `checksums.txt`, on the [releases page](https://github.com/meain/vibediff/releases).
 
 ```bash
 # Example: macOS on Apple Silicon
