@@ -1,166 +1,81 @@
 # VibeDiff
 
-A local Git/Jujutsu diff viewer that runs entirely on your machine. Review your code changes comfortably before committing or pushing.
+A local diff viewer for Git and Jujutsu, built for reviewing code that an AI agent wrote.
+
+You read the diff, leave comments on the lines you don't like, and your agent picks them up, fixes the code, and replies in the same thread. No copy-pasting, no cloud service. One binary on your machine.
 
 ![VibeDiff screenshot](https://github.com/user-attachments/assets/cc2bf145-4b0c-4b94-9322-df27a11b3e94)
 
-## Why VibeDiff?
+## Why
 
-- **🏠 Runs Locally**: Single Go binary starts a web server on your machine - no cloud services, no data leaves your computer
-- **🔄 Live File Watching**: Automatically updates the diff view as files change - see your edits in real-time
-- **💬 AI-Friendly Reviews**: Add review comments to your code, then copy/export them as markdown to paste into AI assistants
-- **🚀 Pre-Commit Workflow**: Review and annotate your changes before committing, ensuring higher quality commits
-- **⚡ Zero Setup**: Just run the binary in any Git or Jujutsu repository - no configuration needed
+Agents write code faster than you can read it. The usual review loop (read the diff in a terminal, describe each problem in chat, hope the agent finds the right line) loses the one thing a review needs: precise, persistent feedback tied to the code.
 
-## Features
+VibeDiff gives you a proper review UI over your working copy and makes the comments machine-readable:
 
-- 🎨 GitHub-like diff visualization with syntax highlighting (PrismJS)
-- 📁 View all changes, staged changes, or unstaged changes
-- 🔀 Side-by-side and unified diff view modes
-- 💬 Inline code review comments with range selection (click and drag across lines)
-- 📋 Copy review comments as markdown for AI workflows
-- 🔄 Real-time updates via WebSocket when files change
-- ⚡ Single binary distribution with embedded web assets
-- 🌓 Dark mode support with automatic theme detection
-- 🔍 View full files with diff context highlighting, expandable context around hunks
-- 📱 Responsive design with resizable sidebar and collapsible file tree
-- 📂 Directory switcher - review multiple repos without restarting
-- 📜 Revision/commit history browsing in the sidebar
-- ✅ Mark files as reviewed with content-aware tracking (marks clear when files change)
-- ⌨️ Keyboard shortcuts for navigation (j/k, r to toggle reviewed, ? for help)
-- 🔧 Supports both Git and Jujutsu (jj) repositories
-- 📌 Sticky file diff headers for easy navigation
-- 🧵 Threaded comments with author badges (user / agent) and status (open / resolved)
-- 📍 Comments pinned to the revision and commit SHA they were made against
+- **Line-anchored feedback.** Click a line, or drag across a range, and write what's wrong. The agent gets the file, line range and revision, not a paraphrase.
+- **Threads that close.** The agent replies and resolves; you reopen if the fix is wrong. Thumbs up/down tells the agent which of its own findings were useful.
+- **Agents can review too.** An agent can review your diff before a human sees it, or annotate a commit with the *why* behind each change.
+- **Live.** The view updates as files change, so you watch the agent's fix land while you read.
+- **Local.** Everything stays on your machine. It works in any Git or Jujutsu repo with no setup.
 
-## Installation
-
-### Build From Source
+## Quick start
 
 ```bash
-git clone https://github.com/meain/vibediff.git
-cd vibediff
-task build
-# Binary will be created as ./vibediff
+# Download a binary from the releases page, or build from source (see Installation)
+cd your-repo
+vibediff
 ```
 
-## Usage
+A browser tab opens on `http://localhost:8888` showing your working copy diff. Click `+` on a line to comment. The help dialog lists every keyboard shortcut (`?`).
 
-### Basic Workflow
-
-1. **Start VibeDiff** in your Git or Jujutsu repository:
-   ```bash
-   vibediff
-   ```
-
-2. **Review your changes** in the browser - the diff updates automatically as you edit files
-
-3. **Add review comments** by clicking the `+` button on any line, or click and drag to comment on a range of lines
-
-4. **Copy comments** using the "Copy Comments" button to get markdown-formatted review notes for AI assistants or team discussions
-
-### AI-Powered Workflow (copy/paste)
-
-1. **Review and annotate** your changes in VibeDiff
-2. **Copy comments** as markdown using the copy button
-3. **Paste into your AI assistant** with instructions to implement the changes
-4. **Re-run VibeDiff** to verify the AI's changes and iterate
-
-### Features Guide
-
-- **Diff Types**: Switch between viewing all changes, staged changes, or unstaged changes (git only; jj shows working copy diff)
-- **View Modes**: Toggle between side-by-side and unified diff views
-- **File Navigation**: Use the collapsible file tree or flat file list view in the resizable sidebar
-- **Code Review**: Click the `+` button on any line to add a comment, or drag across lines for range comments
-- **Reviewed Files**: Mark files as reviewed with the checkbox or press `r` - marks automatically clear if the file changes
-- **Revision Browser**: Browse commit/revision history in the sidebar and view diffs for any past commit
-- **Expand Context**: Expand additional context lines around hunks or expand the full file within the diff
-- **Full File View**: Click "View full file" to see the complete file with diff highlights
-- **Directory Switcher**: Switch between repositories without restarting the server
-- **Dark Mode**: Toggle between light and dark themes (automatically detects system preference)
-- **Line Wrapping**: Toggle line wrapping for long lines
-- **Real-time Updates**: Changes to files are automatically reflected without page refresh
-- **Keyboard Shortcuts**: Press `?` to see all shortcuts (j/k navigation, r to review, Esc to close dialogs)
-- **Syntax Highlighting**: Customizable PrismJS themes for better code readability
-
-
-## Development
-
-### Prerequisites
-
-- Go 1.25 or later
-- Node.js 18+ and npm
-- Task (optional, for running tasks)
-
-### Running in Development
+**Recommended:** run one instance in the background and keep it running, rather than starting VibeDiff in each repo. A single instance reviews any number of repos: add them from the directory switcher (or the API) and flip between them. Comments are kept per repo, and agents in every repo talk to the same URL.
 
 ```bash
-# Terminal 1: Run backend
-task run
-# or
-go run main.go
-
-# Terminal 2: Run frontend with hot reload (optional)
-cd web && npm run dev
+vibediff -no-open &    # or run it under tmux, launchd or systemd
 ```
 
-### Building Production Binary
+## A review in four steps
 
-```bash
-# Build single binary with embedded web assets
-task build
+```mermaid
+sequenceDiagram
+    actor You
+    participant VD as VibeDiff
+    participant Agent
 
-# Or manually:
-cd web && npm run build && cd ..
-go build -o vibediff .
+    You->>VD: Comment on lines
+    Agent->>VD: Fetch open threads
+    Agent->>Agent: Fix the code
+    Agent->>VD: Reply and resolve
+    VD-->>You: Diff updates live
+    You->>VD: Resolve or reopen
 ```
 
-The production binary includes all web assets embedded using Go's `embed` package, creating a single self-contained executable.
+1. Run `vibediff` in the repo your agent is working in.
+2. Review the diff and leave comments.
+3. Tell the agent to check VibeDiff. It reads the open threads, fixes the code, and replies.
+4. Read the new diff, resolve the threads that are fixed, reopen the ones that aren't.
 
-### Available Tasks
+The [workflows guide](docs/workflows.md) walks through this end to end, along with agent-written reviews, commit explanations, and reviewing branches.
 
-```bash
-task            # Show all available tasks
-task run        # Run the server
-task build      # Build production binary with embedded assets
-task build-web  # Build React app only
-task install    # Install globally
-task test       # Run tests
-task lint       # Run Go linter
-task fmt        # Format Go code
-task clean      # Clean build artifacts
-```
+## Highlights
 
-### Tech Stack
+- GitHub-style diffs, side-by-side or unified, with syntax highlighting and expandable context
+- Single-line and range comments, threaded, with `user` / `agent` author badges and open / resolved status
+- Comments pinned to the revision they were made against
+- Revision browser: review any past commit, not only the working copy
+- Mark files and revisions reviewed; marks clear if the content changes
+- Several repos in one instance, with a directory switcher
+- Keyboard shortcuts for the common actions, such as moving between files (`j`/`k`) and marking reviewed (`r`)
+- Git and Jujutsu (jj) support
+- Dark mode
 
-- **Backend**: Go 1.22+ with Gorilla Mux
-- **Frontend**: React 19 with TypeScript
-- **Styling**: Tailwind CSS v4
-- **Syntax Highlighting**: PrismJS
-- **Build Tools**: Vite, Task
-- **Code Quality**: ESLint, golangci-lint, pre-commit
+## Documentation
 
-## Command Line Options
-
-```bash
-vibediff [options] [diff-target]
-
-Options:
-  -host string     Host to bind the server to (default "localhost")
-  -port int        Port to bind the server to (default 8888)
-  -no-open         Disable automatic browser opening
-  -debug           Enable debug logging
-  -version         Show version information
-
-Environment Variables:
-  VIBEDIFF_NO_OPEN   Set to any value to disable automatic browser opening
-
-Examples:
-  vibediff                  # Review working copy changes
-  vibediff main             # Compare against main branch
-  vibediff HEAD~3           # Compare against 3 commits ago
-  vibediff -no-open         # Start without opening browser
-```
+- [Installation](docs/installation.md): releases, building from source, nix
+- [Workflows](docs/workflows.md): worked examples of human and agent review loops
+- [Usage](docs/usage.md): UI features, keyboard shortcuts, command line options
+- [Agent integration](docs/agent-integration.md): REST API, comment model, and example [agent skills](skills/) to adapt. A running instance also serves live API docs at `/docs`
+- [Development](docs/development.md): running locally, tests, tech stack
 
 ## License
 

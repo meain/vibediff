@@ -34,10 +34,11 @@ VibeDiff maintains a persistent list of known project directories
 
 ### `GET /api/directories`
 
-Return the list of all registered directories.
+Return all registered directories, in display order, each with an optional
+display alias.
 
 ```json
-["/path/to/repo-a", "/path/to/repo-b"]
+[{ "path": "/path/to/repo-a" }, { "path": "/path/to/repo-b", "alias": "backend" }]
 ```
 
 ### `POST /api/directories`
@@ -51,9 +52,29 @@ Register a new directory. Validates it is a git or jj repository first.
 Returns `{ "directory": "/path/to/repo", "backend": "git" }` on success,
 or `400` if the path is not a valid repository.
 
+### `PUT /api/directories`
+
+Reorder the registry. The body is the full list of registered paths in the
+new order; it must contain exactly the registered directories, otherwise
+`400`. Returns `204`.
+
+```json
+["/path/to/repo-b", "/path/to/repo-a"]
+```
+
+### `PATCH /api/directories/{path}`
+
+Set or clear the display alias shown in the directory switcher. URL-encode
+the path. An empty alias clears it. Returns `204`, or `404` if the directory
+is not registered.
+
+```json
+{ "alias": "backend" }
+```
+
 ### `DELETE /api/directories/{path}`
 
-Remove a directory from the registry. URL-encode the path.
+Remove a directory from the registry. URL-encode the path. Returns `204`.
 
 ```sh
 curl -X DELETE 'http://localhost:8888/api/directories/%2Fpath%2Fto%2Frepo'
@@ -76,6 +97,15 @@ Return the VCS backend for a specific directory.
 ```sh
 curl 'http://localhost:8888/api/directory?directory=/path/to/repo'
 # {"directory":"/path/to/repo","backend":"jj"}
+```
+
+### `GET /api/config`
+
+Static server configuration. Currently returns the server user's home
+directory.
+
+```json
+{ "homeDir": "/Users/me" }
 ```
 
 ### Comment persistence
@@ -103,8 +133,12 @@ Return comments for a directory, optionally filtered.
 | Query param | Description |
 |-------------|-------------|
 | `directory` | **Required.** Project directory path. |
-| `revision`  | Filter by revision ID. Use `working-copy` for unstaged changes. Omit to return all. |
+| `revision`  | Filter by revision ID. Use `working-copy` for comments on the current working copy (including ones pinned to its concrete revision ID). Omit to return all. |
 | `file`      | Filter by file path. |
+
+The result is a flat array of root comments and replies; group replies by
+`parentId`. Resolved threads are included, so filter on `status` if you only
+want open ones.
 
 ### `GET /api/review/comments/open`
 
@@ -127,15 +161,31 @@ Create a new comment.
   "content":    "Why is this offset by one?",
   "revision":   "",
   "parentId":   "",
-  "authorName": ""
+  "author":     "agent",
+  "authorName": "reviewer"
 }
 ```
 
-Returns the created Comment object with its generated `id`.
+Returns the created Comment object with its generated `id`. `directory`,
+`file` (for root comments) and `content` are required; everything else is
+optional.
+
+`author` is `"user"` or `"agent"` and defaults to `"user"`, so agent clients
+should always set it to `"agent"`.
 
 `authorName` is optional (max 50 characters) and is typically used by agent
-clients to tag which kind of agent posted the comment (e.g. `"explainer"`);
-the UI renders it as `agent:<authorName>`.
+clients to tag which kind of agent posted the comment (e.g. `"reviewer"`,
+`"explain"`); the UI renders it as `agent:<authorName>`.
+
+**Revisions**: leave `revision` empty to comment on the working copy. The
+server resolves it to the working copy's concrete revision ID (a jj change
+ID, or the git HEAD commit) and records the underlying `commit`, so the
+comment stays attached to the right change after the working copy moves on.
+In jj repos always use change IDs, never commit hashes.
+
+**Line numbers**: `line` / `lineEnd` are line numbers in the new version of
+the file. A negative number is the old-file line number of a removed line, so
+`-12` anchors to the deleted line 12. `lineEnd` defaults to `line`.
 
 **File-level comments**: omit `line` (or send `0`) to attach the comment to the
 file as a whole rather than a diff line.
@@ -169,7 +219,8 @@ Set a thumbs up/down on a comment, or clear it.
 ```
 
 `reaction` is `"up"`, `"down"`, or `""` (clear). It appears as `reaction` on
-the Comment object.
+the Comment object. Users use it to rate agent comments; agents should check
+for `"down"` before posting a similar finding again.
 
 ### `DELETE /api/review/comment/{id}`
 
@@ -233,7 +284,7 @@ id) stays stable.
 
 ### `GET /api/file`
 
-Return raw file content.
+Return raw file content as `text/plain`.
 
 | Query param | Values | Description |
 |-------------|--------|-------------|
@@ -280,26 +331,31 @@ Reconnect with exponential back-off if the connection drops.
 
 ```json
 {
-  "id":        "a1b2c3d4",
-  "directory": "/path/to/repo",
-  "file":      "internal/git/parser.go",
-  "line":      42,
-  "lineEnd":   44,
-  "content":   "Why is this offset by one?",
-  "author":    "user",
-  "authorName": "",
-  "parentId":  "",
-  "status":    "open",
-  "revision":  "",
-  "commit":    "abc1234",
-  "createdAt": "2026-06-16T15:04:05Z"
+  "id":              "a1b2c3d4",
+  "directory":       "/path/to/repo",
+  "file":            "internal/git/parser.go",
+  "line":            42,
+  "lineEnd":         44,
+  "content":         "Why is this offset by one?",
+  "originalContent": "offset := idx + 1",
+  "author":          "user",
+  "authorName":      "",
+  "parentId":        "",
+  "status":          "open",
+  "reaction":        "",
+  "revision":        "pmnlkzvn",
+  "commit":          "abc1234",
+  "createdAt":       "2026-06-16T15:04:05Z"
 }
 ```
 
 `author` is `"user"` or `"agent"`.
-`authorName` is an optional free-form tag (e.g. `"explainer"`) naming the kind of agent that posted the comment; the UI renders it as `agent:<authorName>`.
+`authorName` is an optional free-form tag (e.g. `"reviewer"`) naming the kind of agent that posted the comment; the UI renders it as `agent:<authorName>`.
 `status` is `"open"` or `"resolved"`.
+`reaction` is `"up"`, `"down"` or empty.
 `parentId` is empty for root comments; set to a root comment's `id` for replies.
 The API always returns a flat array — clients group by `parentId`.
-`revision` is empty string for working-copy comments.
+`revision` is the revision the comment was made on. Comments created without one are pinned to the working copy's revision ID at creation time.
+`commit` is the commit SHA the comment was anchored to.
+`originalContent` is the text of the commented line(s) captured at creation; suggestion blocks in `content` diff against it.
 `directory` is the project path the comment belongs to.
