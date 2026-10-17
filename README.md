@@ -71,6 +71,8 @@ The [workflows guide](docs/workflows.md) walks through this end to end, along wi
 
 ## Documentation
 
+Also published at **https://meain.io/vibediff/**.
+
 - [Installation](docs/installation.md): releases, building from source, nix
 - [Workflows](docs/workflows.md): worked examples of human and agent review loops
 - [Usage](docs/usage.md): UI features, keyboard shortcuts, command line options

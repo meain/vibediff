@@ -5,7 +5,6 @@ on:
     branches: [master]
     paths:
       - 'docs/**'
-      - 'mkdocs.yml'
       - '.github/workflows/docs.yml'
   workflow_dispatch:
 
@@ -23,19 +22,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-
-      - uses: actions/setup-python@v7
         with:
-          python-version: '3.12'
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: docs/package-lock.json
 
       - name: Build site
+        working-directory: docs
         run: |
-          pip install mkdocs-material
-          mkdocs build --strict
+          npm ci
+          npm run build
 
       - uses: actions/upload-pages-artifact@v5
         with:
-          path: site
+          path: docs/.vitepress/dist
 
   deploy:
     needs: build
