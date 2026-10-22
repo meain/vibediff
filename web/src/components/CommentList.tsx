@@ -53,7 +53,9 @@ export default function CommentList({ comments, onSelectComment }: CommentListPr
           <button
             key={c.id}
             onClick={() => { onSelectComment(c); }}
-            className="block w-full text-left px-2 py-1.5 border-b border-edge-subtle hover:bg-surface-inset transition-colors cursor-pointer"
+            className={`block w-full text-left px-2 py-1.5 border-b border-edge-subtle border-l-2 hover:bg-surface-inset transition-colors cursor-pointer ${
+              c.status === 'open' ? 'border-l-transparent' : 'border-l-success bg-surface-inset/50 opacity-60'
+            }`}
             title={c.content}
           >
             <div className="flex items-center gap-1 text-[11px] text-fg-muted">
@@ -63,14 +65,19 @@ export default function CommentList({ comments, onSelectComment }: CommentListPr
                 <UserIcon className="w-3 h-3 shrink-0" />
               )}
               <span className="truncate font-mono">{c.file}{lineLabel(c)}</span>
-              {c.status !== 'open' && <CheckCircleIcon className="w-3 h-3 shrink-0 text-success ml-auto" />}
+              {c.status !== 'open' && (
+                <span className="shrink-0 ml-auto flex items-center gap-0.5 px-1 rounded bg-success/20 text-success">
+                  <CheckCircleIcon className="w-3 h-3" />
+                  Resolved
+                </span>
+              )}
               {replies > 0 && (
                 <span className={`shrink-0 text-fg-subtle ${c.status === 'open' ? 'ml-auto' : ''}`}>
                   {replies} {replies === 1 ? 'reply' : 'replies'}
                 </span>
               )}
             </div>
-            <div className={`text-xs truncate mt-0.5 ${c.status === 'open' ? 'text-fg' : 'text-fg-subtle'}`}>
+            <div className={`text-xs truncate mt-0.5 ${c.status === 'open' ? 'text-fg' : 'text-fg-subtle line-through'}`}>
               {c.content.split('\n', 1)[0]}
             </div>
           </button>
